@@ -1,3 +1,5 @@
+const base = import.meta.env.BASE_URL
+
 export const galleryItems = [
   {
     title: 'Burned Walnut Wall Piece',

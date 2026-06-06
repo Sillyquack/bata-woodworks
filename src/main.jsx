@@ -67,7 +67,10 @@ function Hero() {
       </div>
 
       <div className="hero-card hero-photo" aria-label="Bata Woodworks preview">
-<img src="images/hero-bata.jpg" alt="Craftsman working with wood" />
+<img
+  src={`${import.meta.env.BASE_URL}images/hero-bata.jpg`}
+  alt="Craftsman working with wood"
+/>
   <div className="hero-card-label">
     <span>Reclaimed</span>
     <strong>Built with intention</strong>
@@ -162,7 +165,10 @@ function About() {
   return (
     <section className="about-section" id="about">
       <div className="about-image">
- <img src="images/about-bata.jpg" alt="Woodworking process" />
+<img
+  src={`${import.meta.env.BASE_URL}images/about-bata.jpg`}
+  alt="Woodworking process"
+/>
   <span>Bata at work</span>
 </div>
       <div className="about-copy">
