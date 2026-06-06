@@ -3,25 +3,25 @@ export const galleryItems = [
     title: 'Burned Walnut Wall Piece',
     category: 'Wood burning',
     description: 'Intricate burned pattern work on reclaimed wood, made as a statement piece for a warm interior.',
-    image: '/images/wood-burned-sign.jpg',
+    image: 'images/wood-burned-sign.jpg',
   },
   {
     title: 'Reclaimed Console Table',
     category: 'Furniture',
     description: 'A narrow custom table made from rescued timber, designed around the dimensions of a specific home.',
-    image: '/images/reclaimed-table.jpg',
+    image: 'images/reclaimed-table.jpg',
   },
   {
     title: 'The Ember Board',
     category: 'Home object',
     description: 'Functional, tactile and one-of-a-kind. Built from offcuts that were too beautiful to throw away.',
-    image: '/images/ember-board.jpg',
+    image: 'images/ember-board.jpg',
   },
   {
     title: 'Custom Work in Progress',
     category: 'Selected commissions',
     description: 'Every piece begins with a conversation, a material, and an idea worth shaping by hand.',
-    image: '/images/custom-work.jpg',
+    image: 'images/custom-work.jpg',
   },
 ]
 
