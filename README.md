@@ -1,42 +1,67 @@
 # Bata Woodworks
 
-A premium showroom website prototype for Bata Woodworks: custom woodwork from reclaimed materials.
+A production-oriented request-to-purchase MVP for custom woodwork. The public site accepts structured requests, the private manager queue turns selected requests into immutable offers, and a server-verified payment advances the accepted offer into production.
 
-## Run locally
+The application deliberately fails closed: no request can be submitted until the approved privacy version is configured, no offer can be purchased without transactional email and a payment provider, and a browser redirect can never mark an order paid.
+
+## Included
+
+- Responsive, accessible public showroom and structured request form
+- Private JPEG, PNG, WebP and PDF uploads with content-signature validation
+- Manager-only queue, notes and controlled lifecycle transitions
+- Versioned private offers with drawings, exact scope, amount, VAT wording, delivery, production window, expiry and snapshotted terms
+- Vipps MobilePay ePayment adapter plus a strictly local/test mock provider
+- Signed and provider-verified webhook handling with replay protection and exact-amount enforcement
+- Atomic `OFFER_SENT → PAID → PRODUCTION → READY → DELIVERED` state changes and auditable history
+- Resend transactional email adapter, idempotent notification records and safe retry paths
+- PostgreSQL RLS, private Storage buckets, manager authorization from fresh Auth metadata, rate limiting and idempotency controls
+- Legal/privacy launch gates that identify every unresolved owner decision as `needs_owner`
+
+## Local development
+
+Prerequisites: Node.js 22+, Docker, Deno 2.9.2 and the Supabase CLI 2.115.0.
 
 ```bash
-npm install
+npm ci
+cp .env.example .env.local
+cp supabase/.env.example supabase/.env.local
+npx --yes supabase@2.115.0 start
+npx --yes supabase@2.115.0 functions serve --env-file supabase/.env.local
 npm run dev
 ```
 
-Open the local URL shown in your terminal, usually:
+Use the local publishable key printed by `supabase status` in `.env.local`. Local ports are intentionally namespaced under `5632x` in [supabase/config.toml](supabase/config.toml).
 
-```txt
-http://localhost:5173
-```
+The checked-in examples contain no credentials. Never commit `.env.local`, Supabase service-role keys, Vipps secrets, Resend keys, webhook secrets or cron secrets.
 
-## Build for production
+## Verification
 
 ```bash
+npm test
 npm run build
-npm run preview
+npm audit --audit-level=high
+npx --yes supabase@2.115.0 db test --local
+npx --yes supabase@2.115.0 db advisors --local --type security --fail-on warn
+npx --yes supabase@2.115.0 db advisors --local --type performance --fail-on warn
 ```
 
-## What is included
+Run the full HTTP integration test while the local stack and Edge Functions are running:
 
-- Premium landing page
-- About/story section
-- Custom work process
-- Gallery/previous work cards
-- Available pieces preview
-- Structured request form
-- Discreet selected carpentry pathway
-- No paid integrations yet
+```bash
+TEST_SUPABASE_URL=http://127.0.0.1:56321 \
+TEST_SUPABASE_PUBLISHABLE_KEY='<local publishable key>' \
+TEST_SUPABASE_SECRET_KEY='<local service-role key>' \
+TEST_MOCK_PAYMENT_SECRET='<value from supabase/.env.local>' \
+TEST_CRON_SECRET='<value from supabase/.env.local>' \
+npm test
+```
 
-## Next suggested upgrades
+The database suite covers RLS and Storage isolation, offer immutability, exact payment amounts, webhook replay, atomic paid transitions, notifications and expiry. The HTTP suite covers the customer, manager, offer and payment flow across the real local API boundary.
 
-- Connect request form to Supabase
-- Add email confirmation via Resend or Supabase Edge Function
-- Add admin dashboard for Bobby/manager role
-- Add product detail pages
-- Add request-to-purchase flow
+## Production handoff
+
+Follow [docs/production-runbook.md](docs/production-runbook.md) in order. It contains the owner-supplied values, Supabase/Vipps/Resend setup, manager creation, deployment commands, webhook and expiry scheduling, smoke tests, rollback guidance and the final launch checklist.
+
+Implementation and security invariants are recorded in [docs/implementation-notes.md](docs/implementation-notes.md).
+
+This repository does not contain live credentials and this change does not deploy or enable real payments.

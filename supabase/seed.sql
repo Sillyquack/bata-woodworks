@@ -1,0 +1,2 @@
+-- Production data is never seeded. Create the first manager through the
+-- Supabase dashboard, then set app_metadata.role to "manager" server-side.
