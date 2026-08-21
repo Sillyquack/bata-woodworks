@@ -63,6 +63,8 @@ SITE_URL=https://<rehearsal-site>
 PRIVACY_VERSION=<owner-approved-version>
 RATE_LIMIT_SALT=<random-secret>
 CRON_SECRET=<random-secret>
+PAYMENT_RECONCILIATION_STALE_SECONDS=15
+PAYMENT_RECONCILIATION_BATCH_SIZE=25
 EMAIL_PROVIDER=resend
 EMAIL_FROM=Bata Woodworks <orders@verified-domain.example>
 INTERNAL_NOTIFICATION_EMAIL=<approved-operations-email>
@@ -118,15 +120,16 @@ In Vipps test:
 
 The test environment exposes wallet only. Do not set `VIPPS_CARD_ENABLED=true` there. Before production, replace every test credential, set `VIPPS_ENVIRONMENT=production`, repeat the smoke tests against the production merchant's approved test process, then set `VIPPS_LIVE_ENABLED=true` only as the final payment interlock. Leave `ALLOW_MOCK_PAYMENTS=false` everywhere outside local development.
 
-## 8. Schedule offer expiry
+## 8. Schedule offer expiry and payment reconciliation
 
-Use Supabase Cron or another trusted scheduler to make a daily authenticated `POST` to:
+Use Supabase Cron or another trusted scheduler to make authenticated `POST` requests every minute to both endpoints:
 
 ```text
 https://<project-ref>.supabase.co/functions/v1/expire-offers
+https://<project-ref>.supabase.co/functions/v1/reconcile-payments
 ```
 
-Send the secret only as `x-cron-secret: <CRON_SECRET>`. Do not place it in a URL. A successful response reports the count of newly expired offers. Monitor non-2xx responses and verify an expired offer is not payable.
+Send the secret only as `x-bata-cron-secret: <CRON_SECRET>`. Do not place it in a URL. `expire-offers` reports newly expired offers; `reconcile-payments` reports claimed, checked, captured, cancelled, pending, rejected and failed counts. Alert on non-2xx responses, any reconciliation failure/rejection, or a stale active payment. Keep the default 15-second stale threshold unless Vipps rate-limit observations justify an owner-reviewed change.
 
 ## 9. Configure the public site
 
@@ -154,13 +157,13 @@ Use a low-risk real request and an explicitly approved payment test:
 - Confirm browser return alone remains pending; only verified exact provider state produces `PAID`
 - Confirm one customer order confirmation and one internal `START PRODUCTION` message
 - Move through `PRODUCTION → READY → DELIVERED`; confirm the READY message
-- Exercise webhook replay, expired offer and failed email retry monitoring
+- Exercise webhook replay, abort-and-retry, late authorization/capture prevention, stale-payment reconciliation, expired offer and failed email retry monitoring
 - Run database advisors again and review Supabase Auth, Function, Database, Storage, Vipps and Resend logs
 
 ## 11. Monitoring, rollback and incident response
 
-- Alert on Edge Function 5xx/latency, repeated webhook 401/409, failed notifications, overdue `OFFER_SENT`, payments stuck outside a terminal state and expiry job failures.
-- Reconcile captured Vipps payments against `payments`, `payment_events` and internal production notifications daily during initial launch.
+- Alert on Edge Function 5xx/latency, repeated webhook 401/409, failed notifications, overdue `OFFER_SENT`, reconciliation failures/rejections, payments stuck outside a terminal state and expiry job failures.
+- The scheduled worker performs operational Vipps recovery. During initial launch, still review captured Vipps payments against `payments`, `payment_events` and internal production notifications daily as a ledger/control check.
 - To stop new commerce safely, set `VIPPS_LIVE_ENABLED=false` or `PAYMENT_PROVIDER=disabled`; this preserves records and makes offers non-payable.
 - To stop new requests, change/remove the deployed `PRIVACY_VERSION` or public matching version; the client disables submission and the server rejects mismatches.
 - Revoke a manager by removing `app_metadata.role`, revoking sessions and rotating any exposed operational credentials.
@@ -178,5 +181,5 @@ Launch is blocked until all of the following are true:
 - Resend domain and customer/internal messages are verified
 - Vipps test certification/rehearsal passes, production credentials are installed and mock payments are off
 - Webhook authenticity, exact amount, replay and browser-return-negative tests pass
-- Expiry schedule and operational alerts are active
+- Expiry and stale-payment reconciliation schedules and operational alerts are active
 - Owner signs off the smoke-test evidence and deliberate MVP limits

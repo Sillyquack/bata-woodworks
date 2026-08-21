@@ -24,7 +24,7 @@ The React/Vite application is a public client. It receives only a Supabase proje
 - Payment events are unique by provider event key. Replays return success without reapplying state or emails.
 - `PAID` is advanced atomically from the payment event trigger; no manager endpoint can set it manually.
 - After payment, the customer gets a confirmation and management gets `START PRODUCTION`. Manager progression is then `PAID → PRODUCTION → READY → DELIVERED`.
-- Expired offers become non-payable; stale private links and rotated links do not reveal another record.
+- Expired offers become non-payable; any outstanding Vipps reservation is cancelled, and stale private links and rotated links do not reveal another record.
 
 ## Security decisions
 
@@ -32,7 +32,8 @@ The React/Vite application is a public client. It receives only a Supabase proje
 - Uploads are capped at five files, 5 MB each and 15 MB total. Extensions are derived from allowlisted MIME types only after magic-byte validation.
 - Request IP addresses are HMAC-pseudonymized with `RATE_LIMIT_SALT`; raw IP addresses are not stored.
 - Submission, payment and notification side effects use idempotency keys.
-- Vipps webhook verification checks request freshness, body hash, HMAC, merchant serial number and provider state. Vipps authorization is captured for the exact offer amount.
+- Vipps webhook verification checks request freshness, body hash, HMAC, merchant serial number and provider state. Immediately before exact capture, a service-only RPC locks and re-checks the payment, offer expiry/status and request status. A short-lived capture claim prevents the expiry worker racing an in-flight provider call.
+- Webhooks are the fast path. A scheduled worker polls stale Vipps `PENDING`/`AUTHORIZED` payments, cancels reservations for non-payable offers and feeds verified snapshots through the same idempotent `payment_events` trigger used by webhooks.
 - `VIPPS_LIVE_ENABLED=true` is a separate production interlock. Mock payments also require both `PAYMENT_PROVIDER=mock` and `ALLOW_MOCK_PAYMENTS=true`.
 - The app uses a restrictive CSP, `no-referrer`, token-in-fragment routes and `Cache-Control: no-store` for protected responses.
 - Payment credentials are handled by Vipps; the application stores provider references and amounts, never wallet/card credentials.
@@ -41,18 +42,20 @@ The React/Vite application is a public client. It receives only a Supabase proje
 ## Important files
 
 - `supabase/migrations/20260821192409_production_mvp.sql` — schema, grants, RLS, buckets, triggers and expiry RPC
+- `supabase/migrations/20260821203607_harden_payment_lifecycle.sql` — capture guard, retry-safe cancellation and reconciliation claims
 - `supabase/functions/submit-request` — validation, rate limit, storage and request emails
 - `supabase/functions/admin-api` — manager queue, state changes and offers
 - `supabase/functions/offer` — token-safe offer projection and signed assets
 - `supabase/functions/create-payment` — idempotent server-priced checkout
 - `supabase/functions/payment-webhook` — signature/provider verification, capture and fulfillment signal
 - `supabase/functions/expire-offers` — authenticated scheduled expiry
+- `supabase/functions/reconcile-payments` — authenticated stale Vipps polling and missed-webhook recovery
 - `supabase/tests/database/production_mvp.test.sql` — pgTAP invariants
 - `tests/edge-flow.test.js` — real local HTTP flow
 
 ## Deliberate MVP limits
 
-- Refund/cancellation states are represented and audited, but provider refund/cancel operations require an owner-approved policy and a separate implementation before staff use them.
+- Refund/cancellation states are represented and audited. Automated cancellation is limited to releasing uncaptured Vipps reservations for expired/non-payable offers; staff refund/cancel actions remain unavailable until policy is approved.
 - The manager queue is single-role and intentionally small; there is no granular staff permission matrix.
 - Customer status is communicated transactionally; there is no customer account or general order portal.
 - Legal pages are structured launch gates, not fabricated legal advice. They remain visibly blocked on `needs_owner` values until the business owner approves final text.

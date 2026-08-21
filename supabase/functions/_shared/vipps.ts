@@ -1,11 +1,31 @@
 import { ApiError } from "./http.ts";
 import { hmacSha256Base64, sha256Base64, timingSafeEqual } from "./crypto.ts";
 
-type VippsAmount = { currency: string; value: number };
+export type VippsAmount = { currency: string; value: number };
+
+export type VippsPaymentSnapshot = {
+  reference?: string;
+  pspReference?: string;
+  state?: string;
+  amount?: VippsAmount;
+  aggregate?: {
+    authorizedAmount?: VippsAmount;
+    cancelledAmount?: VippsAmount;
+    capturedAmount?: VippsAmount;
+    refundedAmount?: VippsAmount;
+  };
+  [key: string]: unknown;
+};
 
 function required(name: string) {
   const value = Deno.env.get(name);
-  if (!value) throw new ApiError(503, "vipps_not_configured", `${name} is required for Vipps.`);
+  if (!value) {
+    throw new ApiError(
+      503,
+      "vipps_not_configured",
+      `${name} is required for Vipps.`,
+    );
+  }
   return value;
 }
 
@@ -13,11 +33,21 @@ function vippsBaseUrl() {
   const environment = Deno.env.get("VIPPS_ENVIRONMENT") ?? "test";
   if (environment === "production") {
     if (Deno.env.get("VIPPS_LIVE_ENABLED") !== "true") {
-      throw new ApiError(503, "vipps_live_disabled", "Live Vipps payments have not been explicitly enabled.");
+      throw new ApiError(
+        503,
+        "vipps_live_disabled",
+        "Live Vipps payments have not been explicitly enabled.",
+      );
     }
     return "https://api.vipps.no";
   }
-  if (environment !== "test") throw new ApiError(503, "vipps_not_configured", "VIPPS_ENVIRONMENT must be test or production.");
+  if (environment !== "test") {
+    throw new ApiError(
+      503,
+      "vipps_not_configured",
+      "VIPPS_ENVIRONMENT must be test or production.",
+    );
+  }
   return "https://apitest.vipps.no";
 }
 
@@ -32,9 +62,21 @@ async function accessToken() {
       "Merchant-Serial-Number": required("VIPPS_MERCHANT_SERIAL_NUMBER"),
     },
   });
-  if (!response.ok) throw new ApiError(502, "vipps_auth_failed", "Vipps authentication failed.");
+  if (!response.ok) {
+    throw new ApiError(
+      502,
+      "vipps_auth_failed",
+      "Vipps authentication failed.",
+    );
+  }
   const payload = await response.json();
-  if (!payload.access_token) throw new ApiError(502, "vipps_auth_failed", "Vipps returned no access token.");
+  if (!payload.access_token) {
+    throw new ApiError(
+      502,
+      "vipps_auth_failed",
+      "Vipps returned no access token.",
+    );
+  }
   return payload.access_token as string;
 }
 
@@ -58,8 +100,15 @@ export async function createVippsPayment(input: {
   method: "WALLET" | "CARD";
   idempotencyKey: string;
 }) {
-  if (input.method === "CARD" && (Deno.env.get("VIPPS_ENVIRONMENT") ?? "test") === "test") {
-    throw new ApiError(400, "card_unavailable_in_test", "Vipps card payments are unavailable in the test environment.");
+  if (
+    input.method === "CARD" &&
+    (Deno.env.get("VIPPS_ENVIRONMENT") ?? "test") === "test"
+  ) {
+    throw new ApiError(
+      400,
+      "card_unavailable_in_test",
+      "Vipps card payments are unavailable in the test environment.",
+    );
   }
 
   const response = await fetch(`${vippsBaseUrl()}/epayment/v1/payments`, {
@@ -76,23 +125,50 @@ export async function createVippsPayment(input: {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.redirectUrl) {
-    console.error("Vipps create failed", response.status, JSON.stringify(payload).slice(0, 800));
-    throw new ApiError(502, "payment_provider_failed", "Vipps could not create the payment.");
+    console.error(
+      "Vipps create failed",
+      response.status,
+      JSON.stringify(payload).slice(0, 800),
+    );
+    throw new ApiError(
+      502,
+      "payment_provider_failed",
+      "Vipps could not create the payment.",
+    );
   }
-  return payload as { redirectUrl: string; reference: string; pspReference?: string };
+  return payload as {
+    redirectUrl: string;
+    reference: string;
+    pspReference?: string;
+  };
 }
 
 export async function getVippsPayment(reference: string) {
-  const response = await fetch(`${vippsBaseUrl()}/epayment/v1/payments/${encodeURIComponent(reference)}`, {
-    headers: await headers(),
-  });
-  if (!response.ok) throw new ApiError(502, "payment_verification_failed", "Vipps payment state could not be verified.");
-  return await response.json();
+  const response = await fetch(
+    `${vippsBaseUrl()}/epayment/v1/payments/${encodeURIComponent(reference)}`,
+    {
+      headers: await headers(),
+    },
+  );
+  if (!response.ok) {
+    throw new ApiError(
+      502,
+      "payment_verification_failed",
+      "Vipps payment state could not be verified.",
+    );
+  }
+  return await response.json() as VippsPaymentSnapshot;
 }
 
-export async function captureVippsPayment(reference: string, amount: VippsAmount, idempotencyKey: string) {
+export async function captureVippsPayment(
+  reference: string,
+  amount: VippsAmount,
+  idempotencyKey: string,
+) {
   const response = await fetch(
-    `${vippsBaseUrl()}/epayment/v1/payments/${encodeURIComponent(reference)}/capture`,
+    `${vippsBaseUrl()}/epayment/v1/payments/${
+      encodeURIComponent(reference)
+    }/capture`,
     {
       method: "POST",
       headers: await headers(idempotencyKey),
@@ -101,9 +177,57 @@ export async function captureVippsPayment(reference: string, amount: VippsAmount
   );
   const payload = await response.json().catch(() => ({}));
   const captured = payload?.aggregate?.capturedAmount;
-  if (!response.ok || captured?.value !== amount.value || captured?.currency !== amount.currency) {
-    console.error("Vipps capture failed", response.status, JSON.stringify(payload).slice(0, 800));
-    throw new ApiError(502, "payment_capture_failed", "Vipps did not confirm the exact capture amount.");
+  if (
+    !response.ok || captured?.value !== amount.value ||
+    captured?.currency !== amount.currency
+  ) {
+    console.error(
+      "Vipps capture failed",
+      response.status,
+      JSON.stringify(payload).slice(0, 800),
+    );
+    throw new ApiError(
+      502,
+      "payment_capture_failed",
+      "Vipps did not confirm the exact capture amount.",
+    );
+  }
+  return payload;
+}
+
+export async function cancelVippsPayment(
+  reference: string,
+  idempotencyKey: string,
+) {
+  const response = await fetch(
+    `${vippsBaseUrl()}/epayment/v1/payments/${
+      encodeURIComponent(reference)
+    }/cancel`,
+    {
+      method: "POST",
+      headers: await headers(idempotencyKey),
+    },
+  );
+  const payload = await response.json().catch(
+    () => ({}),
+  ) as VippsPaymentSnapshot;
+  const state = String(payload.state ?? "").toUpperCase();
+  const authorized = payload.aggregate?.authorizedAmount?.value ?? 0;
+  const captured = payload.aggregate?.capturedAmount?.value ?? 0;
+  const cancelled = payload.aggregate?.cancelledAmount?.value ?? 0;
+  const reservationReleased = state === "TERMINATED" ||
+    (authorized > 0 && cancelled >= authorized - captured);
+  if (!response.ok || !reservationReleased) {
+    console.error(
+      "Vipps cancel failed",
+      response.status,
+      JSON.stringify(payload).slice(0, 800),
+    );
+    throw new ApiError(
+      502,
+      "payment_cancel_failed",
+      "Vipps did not confirm that the payment reservation was released.",
+    );
   }
   return payload;
 }
@@ -116,21 +240,30 @@ export async function verifyVippsWebhook(req: Request, rawBody: string) {
   if (!date || !suppliedHash || !authorization) return false;
 
   const timestamp = Date.parse(date);
-  if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) return false;
+  if (
+    !Number.isFinite(timestamp) ||
+    Math.abs(Date.now() - timestamp) > 5 * 60 * 1000
+  ) return false;
 
   const contentHash = await sha256Base64(rawBody);
   if (!timingSafeEqual(contentHash, suppliedHash)) return false;
 
   const url = new URL(req.url);
   const host = req.headers.get("host") ?? url.host;
-  const signed = `POST\n${url.pathname}${url.search}\n${date};${host};${contentHash}`;
+  const signed =
+    `POST\n${url.pathname}${url.search}\n${date};${host};${contentHash}`;
   const signature = await hmacSha256Base64(secret, signed);
-  const expected = `HMAC-SHA256 SignedHeaders=x-ms-date;host;x-ms-content-sha256&Signature=${signature}`;
+  const expected =
+    `HMAC-SHA256 SignedHeaders=x-ms-date;host;x-ms-content-sha256&Signature=${signature}`;
   return timingSafeEqual(expected, authorization);
 }
 
 export function assertVippsMerchant(msn: unknown) {
   if (String(msn) !== required("VIPPS_MERCHANT_SERIAL_NUMBER")) {
-    throw new ApiError(401, "invalid_webhook_merchant", "Webhook merchant did not match.");
+    throw new ApiError(
+      401,
+      "invalid_webhook_merchant",
+      "Webhook merchant did not match.",
+    );
   }
 }

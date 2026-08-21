@@ -167,15 +167,35 @@ integration('request → offer → mock payment → production flow is server-au
     assert.equal(tampered.response.status, 409)
     assert.equal((await admin.from('payments').select('status').eq('id', pendingPayment.id).single()).data.status, 'PENDING')
 
+    const aborted = await publicFunction('payment-webhook', {
+      eventId: randomUUID(), reference: providerReference, name: 'ABORTED',
+      amount: { value: 12845, currency: 'NOK' }, success: true,
+      occurredAt: new Date().toISOString(),
+    }, { 'x-bata-mock-secret': mockSecret })
+    assert.equal(aborted.response.status, 200, JSON.stringify(aborted.payload))
+    assert.equal((await admin.from('payments').select('status').eq('id', pendingPayment.id).single()).data.status, 'CANCELLED')
+    assert.equal((await admin.from('offers').select('status').eq('id', saved.offer.id).single()).data.status, 'SENT', 'aborting checkout must leave the offer payable')
+    assert.equal((await admin.from('requests').select('status').eq('id', request.id).single()).data.status, 'OFFER_SENT', 'aborting checkout must not cancel the request')
+
+    const retryCheckout = await publicFunction('create-payment', {
+      token, termsVersion: 'test-terms-v1', method: 'MOCK',
+    }, { Origin: 'http://127.0.0.1:5173' })
+    assert.equal(retryCheckout.response.status, 201, JSON.stringify(retryCheckout.payload))
+    assert.notEqual(retryCheckout.payload.providerReference, providerReference)
+    const retryReference = retryCheckout.payload.providerReference
+    const { data: retryPayment } = await admin.from('payments')
+      .select('id, amount_minor, status').eq('provider_reference', retryReference).single()
+    assert.equal(retryPayment.status, 'PENDING')
+
     const eventId = randomUUID()
     const capturedBody = {
-      eventId, reference: providerReference, name: 'CAPTURED',
+      eventId, reference: retryReference, name: 'CAPTURED',
       amount: { value: 12845, currency: 'NOK' }, success: true,
       occurredAt: new Date().toISOString(),
     }
     const captured = await publicFunction('payment-webhook', capturedBody, { 'x-bata-mock-secret': mockSecret })
     assert.equal(captured.response.status, 200, JSON.stringify(captured.payload))
-    assert.equal((await admin.from('payments').select('status').eq('id', pendingPayment.id).single()).data.status, 'CAPTURED')
+    assert.equal((await admin.from('payments').select('status').eq('id', retryPayment.id).single()).data.status, 'CAPTURED')
     assert.equal((await admin.from('requests').select('status').eq('id', request.id).single()).data.status, 'PAID')
     const replay = await publicFunction('payment-webhook', capturedBody, { 'x-bata-mock-secret': mockSecret })
     assert.equal(replay.response.status, 200)
@@ -205,10 +225,38 @@ integration('request → offer → mock payment → production flow is server-au
       terms_version: 'test-v1', terms_snapshot: 'Test terms snapshot long enough for the constraint.',
       issued_at: new Date(Date.now() - 120000).toISOString(), public_token_hash: createHash('sha256').update(expiryToken).digest('hex'),
     })).error)
+    const expiryPaymentId = randomUUID()
+    const expiryReference = `BW-LATE-${randomUUID()}`
+    assert.ifError((await admin.from('payments').insert({
+      id: expiryPaymentId, offer_id: expiryOfferId, offer_version: 1, provider: 'mock', payment_method: 'MOCK',
+      provider_reference: expiryReference, idempotency_key: randomUUID(), status: 'PENDING', amount_minor: 1000,
+      currency: 'NOK', terms_version: 'test-v1', terms_accepted_at: new Date(Date.now() - 120000).toISOString(),
+    })).error)
     const expired = await publicFunction('expire-offers', {}, { 'x-bata-cron-secret': cronSecret })
     assert.equal(expired.response.status, 200, JSON.stringify(expired.payload))
     assert.ok(expired.payload.expired >= 1)
     assert.equal((await admin.from('requests').select('status').eq('id', expiryRequestId).single()).data.status, 'EXPIRED')
+
+    const lateAuthorization = await publicFunction('payment-webhook', {
+      eventId: randomUUID(), reference: expiryReference, name: 'AUTHORIZED',
+      amount: { value: 1000, currency: 'NOK' }, success: true,
+      occurredAt: new Date().toISOString(),
+    }, { 'x-bata-mock-secret': mockSecret })
+    assert.equal(lateAuthorization.response.status, 409)
+    assert.equal((await admin.from('payments').select('status').eq('id', expiryPaymentId).single()).data.status, 'EXPIRED')
+
+    const lateCapture = await publicFunction('payment-webhook', {
+      eventId: randomUUID(), reference: expiryReference, name: 'CAPTURED',
+      amount: { value: 1000, currency: 'NOK' }, success: true,
+      occurredAt: new Date().toISOString(),
+    }, { 'x-bata-mock-secret': mockSecret })
+    assert.equal(lateCapture.response.status, 409)
+    assert.equal((await admin.from('offers').select('status').eq('id', expiryOfferId).single()).data.status, 'EXPIRED')
+    assert.equal((await admin.from('requests').select('status').eq('id', expiryRequestId).single()).data.status, 'EXPIRED')
+
+    const reconciliation = await publicFunction('reconcile-payments', {}, { 'x-bata-cron-secret': cronSecret })
+    assert.equal(reconciliation.response.status, 200, JSON.stringify(reconciliation.payload))
+    assert.equal(reconciliation.payload.claimed, 0, 'local mock flow must not create stale Vipps work')
   } finally {
     for (const userId of createdUsers) await admin.auth.admin.deleteUser(userId)
   }

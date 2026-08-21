@@ -12,6 +12,7 @@ The application deliberately fails closed: no request can be submitted until the
 - Versioned private offers with drawings, exact scope, amount, VAT wording, delivery, production window, expiry and snapshotted terms
 - Vipps MobilePay ePayment adapter plus a strictly local/test mock provider
 - Signed and provider-verified webhook handling with replay protection and exact-amount enforcement
+- Scheduled Vipps polling for stale payments, guarded capture and automatic release after offer expiry
 - Atomic `OFFER_SENT → PAID → PRODUCTION → READY → DELIVERED` state changes and auditable history
 - Resend transactional email adapter, idempotent notification records and safe retry paths
 - PostgreSQL RLS, private Storage buckets, manager authorization from fresh Auth metadata, rate limiting and idempotency controls
@@ -56,11 +57,11 @@ TEST_CRON_SECRET='<value from supabase/.env.local>' \
 npm test
 ```
 
-The database suite covers RLS and Storage isolation, offer immutability, exact payment amounts, webhook replay, atomic paid transitions, notifications and expiry. The HTTP suite covers the customer, manager, offer and payment flow across the real local API boundary.
+The database suite covers RLS and Storage isolation, offer immutability, exact payment amounts, webhook replay, guarded/atomic paid transitions, retry-safe cancellation, stale-payment claims, notifications and expiry. The HTTP suite covers the customer, manager, offer and payment flow across the real local API boundary. Deno tests cover Vipps reconciliation decisions for missed and delayed webhooks.
 
 ## Production handoff
 
-Follow [docs/production-runbook.md](docs/production-runbook.md) in order. It contains the owner-supplied values, Supabase/Vipps/Resend setup, manager creation, deployment commands, webhook and expiry scheduling, smoke tests, rollback guidance and the final launch checklist.
+Follow [docs/production-runbook.md](docs/production-runbook.md) in order. It contains the owner-supplied values, Supabase/Vipps/Resend setup, manager creation, deployment commands, webhook/expiry/reconciliation scheduling, smoke tests, rollback guidance and the final launch checklist.
 
 Implementation and security invariants are recorded in [docs/implementation-notes.md](docs/implementation-notes.md).
 
