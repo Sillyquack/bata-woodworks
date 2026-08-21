@@ -1,0 +1,75 @@
+name: CI
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.2
+
+      - name: Check Edge Functions
+        run: |
+          deno check --config supabase/functions/submit-request/deno.json supabase/functions/submit-request/index.ts
+          deno check --config supabase/functions/offer/deno.json supabase/functions/offer/index.ts
+          deno check --config supabase/functions/create-payment/deno.json supabase/functions/create-payment/index.ts
+          deno check --config supabase/functions/payment-webhook/deno.json supabase/functions/payment-webhook/index.ts
+          deno check --config supabase/functions/admin-api/deno.json supabase/functions/admin-api/index.ts
+          deno check --config supabase/functions/expire-offers/deno.json supabase/functions/expire-offers/index.ts
+
+      - name: Start minimal local Supabase
+        run: npx --yes supabase@2.115.0 start -x studio,imgproxy,logflare,vector,supavisor,realtime,storage-api,edge-runtime
+
+      - name: Database tests
+        run: npx --yes supabase@2.115.0 db test --local
+
+      - name: Security advisor
+        run: npx --yes supabase@2.115.0 db advisors --local --type security --fail-on warn
+
+      - name: Performance advisor
+        run: npx --yes supabase@2.115.0 db advisors --local --type performance --fail-on warn
