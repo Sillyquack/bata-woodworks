@@ -174,7 +174,27 @@ Before production, replace every test credential, set `VIPPS_ENVIRONMENT=product
 
 ## 9. Configure and deploy the static site
 
-In GitHub Actions repository variables, configure:
+For an explicitly authorized backend-free showroom, configure only these
+verified, non-secret GitHub Actions repository variables:
+
+```text
+VITE_SHOWROOM_ONLY=true
+VITE_REQUEST_INTAKE_OPEN=false
+LEGAL_TRADING_ENABLED=false
+REQUEST_INTAKE_OPEN=false
+PAYMENT_PROVIDER=disabled
+VIPPS_LIVE_ENABLED=false
+ALLOW_MOCK_PAYMENTS=false
+```
+
+Leave `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and
+`VITE_PRIVACY_VERSION` unset. The validator requires that absence in showroom
+mode, the browser refuses all backend calls, and the generated CSP has no
+Supabase connection origin. No Supabase, Resend, Edge Function, Cron, manager
+account or Vipps infrastructure is required for this static operating state.
+
+For a later backend-enabled deployment, set `VITE_SHOWROOM_ONLY=false` and
+configure:
 
 ```text
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co

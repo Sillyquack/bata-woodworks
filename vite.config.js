@@ -3,12 +3,15 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const showroomOnly = String(env.VITE_SHOWROOM_ONLY ?? 'false').trim().toLowerCase() === 'true'
   let supabaseOrigin = ''
-  try {
-    const url = new URL(env.VITE_SUPABASE_URL)
-    if (url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')) supabaseOrigin = url.origin
-  } catch {
-    // An unconfigured build remains fail-closed with same-origin networking only.
+  if (!showroomOnly) {
+    try {
+      const url = new URL(env.VITE_SUPABASE_URL)
+      if (url.protocol === 'https:' && url.hostname.endsWith('.supabase.co')) supabaseOrigin = url.origin
+    } catch {
+      // An unconfigured build remains fail-closed with same-origin networking only.
+    }
   }
 
   return {
