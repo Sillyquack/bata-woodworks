@@ -532,6 +532,19 @@ h2 {
   padding: clamp(1rem, 3vw, 2rem);
 }
 
+.request-fields {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 1rem;
+}
+
+.request-fields:disabled {
+  opacity: 0.58;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -768,6 +781,13 @@ select:focus {
   font-weight: 500;
 }
 
+.field-help {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 .file-label {
   padding: 1rem;
   border: 1px dashed rgba(225, 170, 110, 0.42);
@@ -803,6 +823,12 @@ select:focus {
   border-color: rgba(225, 170, 110, 0.38);
   background: rgba(199, 131, 69, 0.11);
   color: var(--amber-light);
+}
+
+.paused-message {
+  border-color: rgba(225, 170, 110, 0.26);
+  background: rgba(225, 170, 110, 0.07);
+  color: var(--text);
 }
 
 .error-message {
@@ -967,6 +993,20 @@ select:focus {
   line-height: 1.7;
 }
 
+.offer-send-guard {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(225, 170, 110, 0.32);
+  border-radius: 1rem;
+  background: rgba(225, 170, 110, 0.06);
+}
+
+.offer-send-guard .primary-button {
+  width: fit-content;
+}
+
 .pre-wrap {
   white-space: pre-wrap;
 }
@@ -1058,6 +1098,12 @@ select:focus {
 
 .offer-acceptance {
   margin-top: 1.25rem;
+}
+
+.offer-period-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
 }
 
 .payment-actions {

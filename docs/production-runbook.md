@@ -61,6 +61,7 @@ For the rehearsal environment use Vipps test and these safety gates:
 ALLOWED_ORIGINS=https://<rehearsal-site>
 SITE_URL=https://<rehearsal-site>
 PRIVACY_VERSION=<owner-approved-version>
+REQUEST_INTAKE_OPEN=true
 RATE_LIMIT_SALT=<random-secret>
 CRON_SECRET=<random-secret>
 PAYMENT_RECONCILIATION_STALE_SECONDS=15
@@ -138,8 +139,11 @@ In GitHub → repository Settings → Secrets and variables → Actions → Vari
 - `VITE_SUPABASE_URL=https://<project-ref>.supabase.co`
 - `VITE_SUPABASE_PUBLISHABLE_KEY=<project publishable key>`
 - `VITE_PRIVACY_VERSION=<same approved version as the Edge Function secret>`
+- `VITE_REQUEST_INTAKE_OPEN=true`
 
 These are intentionally public values. Do not put any secret/service-role/Vipps/Resend value in an Actions variable beginning with `VITE_`.
+
+To pause new custom requests without a code change, set the GitHub Actions variable `VITE_REQUEST_INTAKE_OPEN=false`, set the Supabase Edge Function setting `REQUEST_INTAKE_OPEN=false`, redeploy only the static build and `submit-request`, and verify the calm paused message appears. The portfolio, about content, private offers and accepted/paid order access remain available. To reopen, set both values to `true`, rebuild/redeploy those same surfaces and verify a test submission in the rehearsal environment. The values are non-secret operating configuration; keeping both layers aligned prevents browser or direct-API submissions during a pause.
 
 Review the GitHub Pages custom domain and HTTPS enforcement. The `main` deployment workflow will build the static client after merge; this PR does not deploy it.
 
@@ -151,7 +155,7 @@ Use a low-risk real request and an explicitly approved payment test:
 - Submit once and retry the same request; only one record and one customer acknowledgement should exist
 - Confirm uploaded files are private and anonymous table/storage reads fail
 - Manager login; queue visibility; illegal state transitions rejected
-- Draft and send one offer; capture the exact terms/version shown in the email link
+- Draft and send one offer; confirm the send is blocked until the manager checks that Bata approved both the project and the production period, then capture the exact terms/version shown in the email link
 - Confirm an edited issued offer is rejected and a resend invalidates the old link
 - Confirm the checkout amount is identical to the stored offer and cannot be overridden by the browser
 - Confirm browser return alone remains pending; only verified exact provider state produces `PAID`
@@ -165,7 +169,7 @@ Use a low-risk real request and an explicitly approved payment test:
 - Alert on Edge Function 5xx/latency, repeated webhook 401/409, failed notifications, overdue `OFFER_SENT`, reconciliation failures/rejections, payments stuck outside a terminal state and expiry job failures.
 - The scheduled worker performs operational Vipps recovery. During initial launch, still review captured Vipps payments against `payments`, `payment_events` and internal production notifications daily as a ledger/control check.
 - To stop new commerce safely, set `VIPPS_LIVE_ENABLED=false` or `PAYMENT_PROVIDER=disabled`; this preserves records and makes offers non-payable.
-- To stop new requests, change/remove the deployed `PRIVACY_VERSION` or public matching version; the client disables submission and the server rejects mismatches.
+- To pause new requests, set both `VITE_REQUEST_INTAKE_OPEN=false` and `REQUEST_INTAKE_OPEN=false` as documented in section 9. Do not misuse the privacy-version launch gate for routine capacity management.
 - Revoke a manager by removing `app_metadata.role`, revoking sessions and rotating any exposed operational credentials.
 - Roll back the static site through the previous GitHub Pages artifact/commit. Treat database migrations as forward-only: make a reviewed corrective migration rather than deleting or resetting production data.
 - For a suspected offer-link leak, use manager resend to rotate the token. For a secret leak, disable the affected integration first, rotate at the provider and Supabase, then review audit/event logs.

@@ -132,7 +132,16 @@ integration('request → offer → mock payment → production flow is server-au
     uploadBody.set('file', pngFile('drawing.png'))
     const uploadResult = await manager.functions.invoke('admin-api', { body: uploadBody })
     assert.ifError(uploadResult.error)
-    const sent = await invoke({ action: 'send_offer', offerId: saved.offer.id })
+    const unapprovedSend = await manager.functions.invoke('admin-api', {
+      body: { action: 'send_offer', offerId: saved.offer.id },
+    })
+    assert.ok(unapprovedSend.error, 'offer send must require explicit Bata approval')
+    const unapprovedPayload = await unapprovedSend.error.context.json()
+    assert.equal(unapprovedPayload.error, 'bata_approval_required')
+    assert.equal((await admin.from('offers').select('status').eq('id', saved.offer.id).single()).data.status, 'DRAFT')
+    assert.equal((await admin.from('requests').select('status').eq('id', request.id).single()).data.status, 'DESIGN')
+
+    const sent = await invoke({ action: 'send_offer', offerId: saved.offer.id, bataApprovalConfirmed: true })
     assert.equal(sent.issued, true)
     assert.equal(sent.emailSent, true)
     assert.ok(sent.previewUrl)
@@ -141,6 +150,7 @@ integration('request → offer → mock payment → production flow is server-au
     const customerOffer = await publicFunction('offer', { token }, { Origin: 'http://127.0.0.1:5173' })
     assert.equal(customerOffer.response.status, 200, JSON.stringify(customerOffer.payload))
     assert.equal(customerOffer.payload.totalMinor, 12845)
+    assert.equal(customerOffer.payload.productionWindow, 'Four to six weeks after verified payment.')
     assert.equal(customerOffer.payload.paymentMethods[0], 'MOCK')
     assert.equal(customerOffer.payload.attachments.length, 1)
 

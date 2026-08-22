@@ -91,7 +91,7 @@ function OfferEditor({ request, onChanged, setNotice }) {
   const defaultExpiry = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16)
   return (
     <section className="manager-section">
-      <div className="manager-section-heading"><div><p className="eyebrow">Commercial terms</p><h3>{draft ? `Draft offer v${draft.version}` : 'Prepare offer'}</h3></div><span>Manager-approved pricing only</span></div>
+      <div className="manager-section-heading"><div><p className="eyebrow">Commercial terms</p><h3>{draft ? `Draft offer v${draft.version}` : 'Prepare offer'}</h3></div><span>Manager-approved pricing · Bata-approved project and period</span></div>
       {error && <div className="form-message error-message" role="alert">{error}</div>}
       <form className="admin-form" onSubmit={save} key={draft?.id ?? request.id}>
         <label>Project title<input name="projectTitle" required minLength="2" maxLength="240" defaultValue={draft?.project_title ?? ''} /></label>
@@ -104,7 +104,7 @@ function OfferEditor({ request, onChanged, setNotice }) {
         <label>VAT treatment<input name="vatTreatment" required minLength="2" maxLength="500" defaultValue={draft?.vat_treatment ?? ''} placeholder="Use the owner-approved exact wording" /></label>
         <label>Delivery / pickup terms<textarea name="deliveryTerms" required rows="4" defaultValue={draft?.delivery_terms ?? ''} /></label>
         <div className="form-row">
-          <label>Production window<input name="productionWindow" required defaultValue={draft?.production_window ?? ''} placeholder="Exact estimate or promised window" /></label>
+          <label>Bata-approved production period<input name="productionWindow" required defaultValue={draft?.production_window ?? ''} placeholder="For example: 8–12 weeks after verified payment" /><small className="field-help">Use the broad period Bata approved for this project. Do not derive it from the customer’s timing preference or invent a deadline.</small></label>
           <label>Offer expiry<input name="expiresAt" type="datetime-local" required defaultValue={draft ? new Date(draft.expires_at).toISOString().slice(0, 16) : defaultExpiry} /></label>
         </div>
         <label>Approved terms version<input name="termsVersion" required maxLength="80" defaultValue={draft?.terms_version ?? ''} placeholder="Owner-approved identifier" /></label>
@@ -112,6 +112,27 @@ function OfferEditor({ request, onChanged, setNotice }) {
         <button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save draft offer'}</button>
       </form>
     </section>
+  )
+}
+
+function OfferSendGuard({ draft, busy, onSend }) {
+  const [confirmed, setConfirmed] = useState(false)
+
+  return (
+    <div className="offer-send-guard">
+      <label className="checkbox-label">
+        <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
+        <span>Bata has approved this project and production period.</span>
+      </label>
+      <small className="field-help">Required for this send. The acknowledgement resets whenever the saved draft changes.</small>
+      <button
+        className="primary-button"
+        onClick={() => onSend('send_offer', draft.id, { bataApprovalConfirmed: true })}
+        disabled={busy || !confirmed}
+      >
+        Send private offer v{draft.version}
+      </button>
+    </div>
   )
 }
 
@@ -152,10 +173,10 @@ function RequestDetail({ request, refresh }) {
     finally { setBusy(false); event.target.value = '' }
   }
 
-  async function offerAction(action, offerId) {
+  async function offerAction(action, offerId, confirmation = {}) {
     setBusy(true); setError(''); setNotice(''); setPreviewUrl('')
     try {
-      const result = await adminAction({ action, offerId })
+      const result = await adminAction({ action, offerId, ...confirmation })
       setNotice(result.emailSent ? 'Private offer email sent.' : 'Offer issued, but email delivery failed. Use resend after fixing the provider.')
       setPreviewUrl(result.previewUrl ?? '')
       await refresh()
@@ -173,7 +194,7 @@ function RequestDetail({ request, refresh }) {
           <div><dt>Customer</dt><dd>{request.customer_name}<br /><a href={`mailto:${request.email}`}>{request.email}</a>{request.phone && <><br />{request.phone}</>}</dd></div>
           <div><dt>Location</dt><dd>{request.location}</dd></div>
           <div><dt>Budget</dt><dd>{request.budget_range || 'Not specified'}</dd></div>
-          <div><dt>Timing</dt><dd>{request.requested_timeline || 'Not specified'}{request.requested_date && <><br />{request.requested_date}</>}</dd></div>
+          <div><dt>Customer timing preference (non-binding)</dt><dd>{request.requested_timeline || 'Not specified'}{request.requested_date && <><br />Preferred date: {request.requested_date}</>}</dd></div>
           <div className="wide"><dt>Description</dt><dd className="pre-wrap">{request.project_description}</dd></div>
           <div><dt>Dimensions</dt><dd className="pre-wrap">{request.rough_dimensions || 'Not supplied'}</dd></div>
           <div><dt>Intended use</dt><dd className="pre-wrap">{request.intended_use || 'Not supplied'}</dd></div>
@@ -197,7 +218,7 @@ function RequestDetail({ request, refresh }) {
           <h3>Drawing / offer assets</h3>
           <div className="manager-assets">{draft.attachments.map((asset) => <a key={asset.id} href={asset.url} target="_blank" rel="noreferrer">{asset.name}</a>)}</div>
           <label className="secondary-button upload-button"><Upload size={16} /> Upload JPEG, PNG, WebP or PDF<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={upload} hidden /></label>
-          <button className="primary-button" onClick={() => offerAction('send_offer', draft.id)} disabled={busy}>Approve and send private offer v{draft.version}</button>
+          <OfferSendGuard key={`${draft.id}:${draft.updated_at}`} draft={draft} busy={busy} onSend={offerAction} />
         </section>
       )}
       {sent && <section className="manager-section"><h3>Active offer v{sent.version}</h3><p>{sent.project_title} · {formatMoney(sent.total_minor, sent.currency)} · expires {formatDateTime(sent.expires_at)}</p><button className="secondary-button" onClick={() => offerAction('resend_offer', sent.id)} disabled={busy}>Rotate link and resend</button></section>}

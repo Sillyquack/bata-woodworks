@@ -9,6 +9,7 @@ import {
   internalEmail,
   sendTransactionalEmail,
 } from "../_shared/email.ts";
+import { INTAKE_PAUSED_MESSAGE, isRequestIntakeOpen } from "../_shared/intake.ts";
 
 const requestTypes = new Set([
   "Custom furniture",
@@ -62,6 +63,10 @@ export default {
       const admin: any = ctx.supabaseAdmin;
       assertAllowedOrigin(req);
       requireMethod(req, "POST");
+
+      if (!isRequestIntakeOpen(Deno.env.get("REQUEST_INTAKE_OPEN"))) {
+        throw new ApiError(503, "request_intake_paused", INTAKE_PAUSED_MESSAGE);
+      }
 
       const contentType = req.headers.get("content-type") ?? "";
       if (!contentType.startsWith("multipart/form-data")) {

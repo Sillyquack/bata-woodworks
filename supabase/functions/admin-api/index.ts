@@ -60,7 +60,7 @@ async function listQueue(admin: any) {
     internal_notes, ready_instructions,
     attachments:request_attachments(id, bucket_id, object_path, original_name, mime_type),
     offers(
-      id, version, created_at, issued_at, status, project_title, specification,
+      id, version, created_at, updated_at, issued_at, status, project_title, specification,
       materials_finish, price_minor, delivery_charge_minor, total_minor, currency,
       vat_treatment, delivery_terms, production_window, expires_at, terms_version,
       terms_snapshot, accepted_at,
@@ -250,6 +250,13 @@ async function uploadOfferAsset(admin: any, form: FormData) {
 }
 
 async function sendOffer(admin: any, user: any, body: any) {
+  if (body.bataApprovalConfirmed !== true) {
+    throw new ApiError(
+      400,
+      "bata_approval_required",
+      "Confirm that Bata approved this project and production period before sending the offer.",
+    );
+  }
   if (emailProviderMode() === "disabled") {
     throw new ApiError(503, "email_not_configured", "Transactional email must be configured before sending an offer.");
   }
@@ -257,7 +264,7 @@ async function sendOffer(admin: any, user: any, body: any) {
   if (!siteUrl) throw new ApiError(503, "site_url_missing", "SITE_URL is required.");
   const offerId = uuid(body.offerId, "offerId");
   const { data: offer, error } = await admin.from("offers").select(`
-    id, request_id, version, status, project_title, total_minor, currency, expires_at,
+    id, request_id, version, status, project_title, production_window, total_minor, currency, expires_at,
     request:requests!inner(public_reference, customer_name, email, status)
   `).eq("id", offerId).single();
   if (error) throw error;
@@ -290,8 +297,8 @@ async function sendOffer(admin: any, user: any, body: any) {
   const emailSent = await recordEmailResult(admin, notification.id, {
     to: offer.request.email,
     subject: `Private offer ${offer.request.public_reference}`,
-    text: `Hello ${offer.request.customer_name}. Your private offer for ${offer.project_title} is ready: ${offerUrl} Total: ${money}. Expires ${offer.expires_at}.`,
-    html: `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Your private offer for <strong>${escapeHtml(offer.project_title)}</strong> is ready.</p><p><a href="${escapeHtml(offerUrl)}">Review the private offer</a></p><p>Total: ${escapeHtml(money)}. Expires ${escapeHtml(offer.expires_at)}.</p>`,
+    text: `Hello ${offer.request.customer_name}. Your private offer for ${offer.project_title} is ready: ${offerUrl} Total: ${money}. Agreed production period: ${offer.production_window}. Expires ${offer.expires_at}.`,
+    html: `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Your private offer for <strong>${escapeHtml(offer.project_title)}</strong> is ready.</p><p><a href="${escapeHtml(offerUrl)}">Review the private offer</a></p><p>Total: ${escapeHtml(money)}. Agreed production period: ${escapeHtml(offer.production_window)}. Expires ${escapeHtml(offer.expires_at)}.</p>`,
   });
   return {
     issued: true,

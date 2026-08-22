@@ -1,6 +1,6 @@
 # Bata Woodworks
 
-A production-oriented request-to-purchase MVP for custom woodwork. The public site accepts structured requests, the private manager queue turns selected requests into immutable offers, and a server-verified payment advances the accepted offer into production.
+A production-oriented request-to-purchase MVP for selectively commissioned woodwork. Management filters public requests around Bata's interests, creative direction and capacity; only Bata-approved projects and production periods can become immutable private offers, and server-verified payment advances an accepted offer into production.
 
 The application deliberately fails closed: no request can be submitted until the approved privacy version is configured, no offer can be purchased without transactional email and a payment provider, and a browser redirect can never mark an order paid.
 
@@ -9,7 +9,8 @@ The application deliberately fails closed: no request can be submitted until the
 - Responsive, accessible public showroom and structured request form
 - Private JPEG, PNG, WebP and PDF uploads with content-signature validation
 - Manager-only queue, notes and controlled lifecycle transitions
-- Versioned private offers with drawings, exact scope, amount, VAT wording, delivery, production window, expiry and snapshotted terms
+- Versioned private offers with drawings, exact scope, amount, VAT wording, delivery, agreed production period, expiry and snapshotted terms
+- Independent public/server intake switch that pauses new requests without hiding the showroom or existing private offers
 - Vipps MobilePay ePayment adapter plus a strictly local/test mock provider
 - Signed and provider-verified webhook handling with replay protection and exact-amount enforcement
 - Scheduled Vipps polling for stale payments, guarded capture and automatic release after offer expiry

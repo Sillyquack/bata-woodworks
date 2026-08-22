@@ -16,8 +16,9 @@ The React/Vite application is a public client. It receives only a Supabase proje
 ## State and commercial invariants
 
 - A request is not a purchase. Submission creates `NEW` only.
-- Managers use `NEW → REVIEW → DESIGN`; issuing a valid draft offer atomically sets `OFFER_SENT`.
-- Issued scope, materials, amount, VAT wording, delivery, production window, expiry, terms snapshot and assets are immutable. A change requires a new offer version.
+- Management filters requests through `NEW → REVIEW → DESIGN`; requests may be held or declined before Bata is involved. Only a project Bata wants to make and that fits his interests, creative direction and capacity should enter `DESIGN`.
+- Issuing a valid draft offer atomically sets `OFFER_SENT` and requires an explicit per-send confirmation that Bata approved the project and its production period. The API enforces the confirmation without persisting it as a fabricated permanent fact.
+- Issued scope, materials, amount, VAT wording, delivery, agreed production period, expiry, terms snapshot and assets are immutable. A change requires a new offer version.
 - The payment amount and currency come from the active offer on the server. Client-supplied prices are ignored.
 - Payment initiation is idempotent and one open payment is allowed per offer version.
 - Provider return URLs are display-only. Only an authenticated webhook event plus a provider snapshot/capture for the exact amount can produce `PAID`.
@@ -31,6 +32,7 @@ The React/Vite application is a public client. It receives only a Supabase proje
 - Public functions use explicit origin allowlists, narrow methods, generic customer-facing errors and no ambient table access.
 - Uploads are capped at five files, 5 MB each and 15 MB total. Extensions are derived from allowlisted MIME types only after magic-byte validation.
 - Request IP addresses are HMAC-pseudonymized with `RATE_LIMIT_SALT`; raw IP addresses are not stored.
+- `VITE_REQUEST_INTAKE_OPEN=false` disables the public form while leaving the showroom and private offer routes available. Matching `REQUEST_INTAKE_OPEN=false` makes the Edge Function reject direct submissions; neither setting affects accepted or paid offers.
 - Submission, payment and notification side effects use idempotency keys.
 - Vipps webhook verification checks request freshness, body hash, HMAC, merchant serial number and provider state. Immediately before exact capture, a service-only RPC locks and re-checks the payment, offer expiry/status and request status. A short-lived capture claim prevents the expiry worker racing an in-flight provider call.
 - Webhooks are the fast path. A scheduled worker polls stale Vipps `PENDING`/`AUTHORIZED` payments, cancels reservations for non-payable offers and feeds verified snapshots through the same idempotent `payment_events` trigger used by webhooks.

@@ -191,14 +191,14 @@ export async function deliverCapturedPaymentNotifications(
       to: request.email,
       subject: `Order confirmed ${request.public_reference}`,
       text:
-        `Payment of ${money} is verified. Your order is confirmed and production can begin. Production window: ${payment.offer.production_window}.`,
+        `Payment of ${money} is verified. Your order is confirmed and production can begin. Agreed production period: ${payment.offer.production_window}.`,
       html: `<p>Hello ${
         escapeHtml(request.customer_name)
       },</p><p>Payment of <strong>${
         escapeHtml(money)
       }</strong> is verified for ${
         escapeHtml(request.public_reference)
-      }.</p><p>Your order is confirmed and production can begin. Production window: ${
+        }.</p><p>Your order is confirmed and production can begin. Agreed production period: ${
         escapeHtml(payment.offer.production_window)
       }.</p>`,
     }),

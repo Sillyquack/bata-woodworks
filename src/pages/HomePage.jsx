@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { ArrowRight, Hammer, Leaf, Mail, Paperclip, Sparkles } from 'lucide-react'
 import { availablePieces, galleryItems, requestTypes } from '../data/content'
-import { backendConfigured, privacyVersion, submitRequest } from '../lib/backend'
+import { backendConfigured, privacyVersion, requestIntakeOpen, submitRequest } from '../lib/backend'
+import { intakePausedMessage } from '../lib/intake'
 import { Footer, Header } from '../components/Chrome'
 
 function Hero() {
@@ -10,7 +11,7 @@ function Hero() {
       <div className="hero-copy">
         <p className="eyebrow">Selected custom woodwork</p>
         <h1>Handmade pieces from wood with a past.</h1>
-        <p className="hero-text">Bata Woodworks creates one-of-a-kind furniture, objects and artistic wood pieces from reclaimed materials — shaped by a lifelong carpenter with a rare eye for detail.</p>
+        <p className="hero-text">Bata Woodworks creates one-of-a-kind furniture, objects and artistic wood pieces from reclaimed materials — selected around Bata’s creative direction and made at a deliberate pace.</p>
         <div className="hero-actions">
           <a className="primary-button" href="#request">Request a custom piece <ArrowRight size={18} /></a>
           <a className="secondary-button" href="#work">View the work</a>
@@ -29,7 +30,7 @@ function ValueStrip() {
     <section className="value-strip" aria-label="Core values">
       <div><Leaf /><h3>Reclaimed materials</h3><p>Wood that might have been discarded becomes the beginning of something lasting.</p></div>
       <div><Hammer /><h3>Lifetime craft</h3><p>Practical carpentry skill meets artistic instinct, detail and precision.</p></div>
-      <div><Sparkles /><h3>Selected projects</h3><p>Every request is reviewed individually. Not everything is accepted — and that is the point.</p></div>
+      <div><Sparkles /><h3>Intentional capacity</h3><p>Every request is reviewed. Limited capacity protects the creative work, so only selected projects move forward.</p></div>
     </section>
   )
 }
@@ -56,17 +57,18 @@ function WorkGallery() {
 
 function CustomProcess() {
   const steps = [
-    ['Send a structured request', 'Share the intended use, rough dimensions, location, budget, timeline and up to five reference files.'],
-    ['We review the fit', 'Bata considers materials, complexity, timeline, budget and creative direction. Submission does not guarantee acceptance.'],
-    ['Review one private offer', 'Selected projects receive one link with the exact scope, drawing, price, delivery terms, production window and expiry.'],
+    ['Send a structured request', 'Share the intended use, rough dimensions, location, budget, preferred timing and up to five reference files. Submission does not guarantee acceptance.'],
+    ['Management reviews the fit', 'Requests are filtered for scope and capacity first. They may be held or declined without taking Bata away from the workbench.'],
+    ['Bata selects the work', 'Only projects Bata wants to make — and that fit his capacity, interests and creative direction — reach the offer stage.'],
+    ['Review one private offer', 'Selected projects receive one link with the exact scope, drawing, price, delivery terms, Bata-approved production period and expiry.'],
     ['Pay to start production', 'Only verified payment creates a production commitment. Automated updates follow when the piece enters production and is ready.'],
   ]
   return (
     <section className="section split" id="custom">
       <div className="sticky-copy">
         <p className="eyebrow">Custom work</p>
-        <h2>Not mass produced. Not automatically accepted.</h2>
-        <p>Bata takes on selected custom projects only. This keeps the work personal, protects the craft, and gives each piece the attention it deserves.</p>
+        <h2>Selected freely. Made without rushing for volume.</h2>
+        <p>Bata Woodworks is built around the maker’s creative capacity, not the number of orders. Demand may exceed that capacity; intake can periodically pause so every accepted piece receives the attention it deserves.</p>
         <a className="text-link" href="#request">Start a request <ArrowRight size={16} /></a>
       </div>
       <div className="process-list">
@@ -119,7 +121,7 @@ function RequestForm() {
 
   async function handleSubmit(event) {
     event.preventDefault()
-    if (!backendConfigured || state.phase === 'sending') return
+    if (!backendConfigured || !requestIntakeOpen || state.phase === 'sending') return
     const form = event.currentTarget
     const data = new FormData(form)
     data.set('privacyAccepted', data.get('privacyAccepted') ? 'true' : 'false')
@@ -141,10 +143,15 @@ function RequestForm() {
       <div className="request-intro">
         <p className="eyebrow">Request</p>
         <h2>Tell us what you would like made.</h2>
-        <p>Give us enough detail to assess the project without a long email chain. If it is selected, you will receive one private offer with exact terms and a payment step.</p>
+        <p>Give management enough detail to assess the fit. Only selected requests are shared with Bata; if he wants to make the project and capacity allows, you will receive one private offer with exact terms and a payment step.</p>
       </div>
       <form className="request-form" onSubmit={handleSubmit} encType="multipart/form-data">
-        {!backendConfigured && (
+        {!requestIntakeOpen && (
+          <div className="form-message paused-message" role="status">
+            {intakePausedMessage}
+          </div>
+        )}
+        {requestIntakeOpen && !backendConfigured && (
           <div className="form-message warning-message" role="status">
             Online requests are not yet open. The owner must finish the privacy, email and backend setup before live submissions can be accepted.
           </div>
@@ -159,6 +166,7 @@ function RequestForm() {
             {state.message} {state.reference && <><br />Reference: <strong>{state.reference}</strong>. Keep this for your records.</>}
           </div>
         )}
+        <fieldset className="request-fields" disabled={!requestIntakeOpen}>
         <div className="form-row">
           <label>Name<input name="name" autoComplete="name" type="text" required minLength="2" maxLength="160" /></label>
           <label>Email<input name="email" autoComplete="email" type="email" required maxLength="320" /></label>
@@ -175,9 +183,9 @@ function RequestForm() {
         </div>
         <div className="form-row">
           <label>Approx. budget<select name="budget" defaultValue=""><option value="">Not specified</option><option>Under 2,500 NOK</option><option>2,500–5,000 NOK</option><option>5,000–10,000 NOK</option><option>10,000–25,000 NOK</option><option>25,000+ NOK</option><option>Not sure yet</option></select></label>
-          <label>Timeline<select name="timeline" defaultValue=""><option value="">Not specified</option><option>No rush</option><option>Within 1–2 months</option><option>Within 3–6 months</option><option>Specific date</option><option>Not sure yet</option></select></label>
+          <label>Preferred timing — not a deadline<select name="timeline" defaultValue=""><option value="">Not specified</option><option>No timing preference</option><option>Within 1–2 months</option><option>Within 3–6 months</option><option>I have a preferred date</option><option>Not sure yet</option></select></label>
         </div>
-        <label>Requested date <span className="optional">Optional</span><input name="requestedDate" type="date" /></label>
+        <label>Preferred date — optional, not guaranteed<input name="requestedDate" type="date" /><small className="field-help">Timing helps us assess fit only. It does not create a deadline or production commitment.</small></label>
         <label className="file-label">
           <span>Inspiration or reference files <span className="optional">Optional</span></span>
           <span className="file-help"><Paperclip size={16} /> Up to 5 JPEG, PNG, WebP or PDF files; 5 MB each and 15 MB total.</span>
@@ -187,9 +195,10 @@ function RequestForm() {
           <input name="privacyAccepted" type="checkbox" required />
           <span>I have read the <a href="#/privacy" target="_blank" rel="noreferrer">privacy notice</a>, consent to this request being processed, and understand that submission does not guarantee acceptance.</span>
         </label>
-        <button className="primary-button submit-button" type="submit" disabled={!backendConfigured || state.phase === 'sending'}>
+        <button className="primary-button submit-button" type="submit" disabled={!backendConfigured || !requestIntakeOpen || state.phase === 'sending'}>
           {state.phase === 'sending' ? 'Sending…' : 'Submit request'} <Mail size={18} />
         </button>
+        </fieldset>
       </form>
     </section>
   )

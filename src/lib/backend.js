@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
+import { isRequestIntakeOpen } from './intake'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '')
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const publicEnv = import.meta.env ?? {}
+const supabaseUrl = publicEnv.VITE_SUPABASE_URL?.replace(/\/$/, '')
+const publishableKey = publicEnv.VITE_SUPABASE_PUBLISHABLE_KEY
 
-export const privacyVersion = import.meta.env.VITE_PRIVACY_VERSION ?? ''
+export const privacyVersion = publicEnv.VITE_PRIVACY_VERSION ?? ''
+export const requestIntakeOpen = isRequestIntakeOpen(publicEnv.VITE_REQUEST_INTAKE_OPEN)
 export const backendConfigured = Boolean(supabaseUrl && publishableKey && privacyVersion && privacyVersion !== 'needs_owner')
 
 export const supabase = supabaseUrl && publishableKey

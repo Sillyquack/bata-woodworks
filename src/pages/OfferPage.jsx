@@ -98,14 +98,15 @@ export default function OfferPage({ token, query }) {
                   <div><dt>Work</dt><dd>{formatMoney(offer.priceMinor, offer.currency)}</dd></div>
                   <div><dt>Delivery</dt><dd>{formatMoney(offer.deliveryChargeMinor, offer.currency)}</dd></div>
                   <div><dt>VAT</dt><dd>{offer.vatTreatment}</dd></div>
-                  <div><dt>Production</dt><dd>{offer.productionWindow}</dd></div>
+                  <div><dt>Agreed production period</dt><dd>{offer.productionWindow}</dd></div>
                   <div><dt>Offer expires</dt><dd>{formatDateTime(offer.expiresAt)}</dd></div>
                 </dl>
+                <p className="offer-period-note">This period forms part of this exact offer. A fixed delivery date applies only when expressly stated in the offer.</p>
                 {offer.payable && offer.paymentMethods.length > 0 && (
                   <>
                     <label className="checkbox-label offer-acceptance">
                       <input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />
-                      <span>I have reviewed this exact scope, total, production window and terms version.</span>
+                      <span>I have reviewed this exact scope, total, agreed production period and terms version.</span>
                     </label>
                     <div className="payment-actions">
                       {offer.paymentMethods.map((method) => (
