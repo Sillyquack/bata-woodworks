@@ -66,7 +66,12 @@ export function errorResponse(req: Request, error: unknown) {
     return json(req, { error: error.code, message: error.message }, error.status);
   }
 
-  console.error(error);
+  const safeError = error as { name?: unknown; code?: unknown };
+  console.error(JSON.stringify({
+    event: "edge_unhandled_error",
+    name: String(safeError?.name ?? "Error").slice(0, 80),
+    code: String(safeError?.code ?? "unknown").slice(0, 80),
+  }));
   return json(req, {
     error: "internal_error",
     message: "The request could not be completed.",

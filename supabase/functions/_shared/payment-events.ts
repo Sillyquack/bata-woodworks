@@ -1,5 +1,11 @@
 import { ApiError } from "./http.ts";
-import { escapeHtml, internalEmail, sendTransactionalEmail } from "./email.ts";
+import {
+  escapeHtml,
+  internalEmail,
+  sendTransactionalEmail,
+  wrapEmailHtml,
+} from "./email.ts";
+import { ORDERS_EMAIL } from "./identity.ts";
 
 export type PaymentContext = {
   id: string;
@@ -124,7 +130,10 @@ async function deliverNotification(
   ).eq("id", id).single();
   if (notification?.status === "SENT") return true;
   try {
-    const result = await sendTransactionalEmail(message);
+    const result = await sendTransactionalEmail({
+      ...message,
+      idempotencyKey: message.idempotencyKey ?? `notification-${id}`,
+    });
     await admin.from("notifications").update({
       status: "SENT",
       provider_message_id: result.id,
@@ -160,7 +169,7 @@ export async function deliverCapturedPaymentNotifications(
     .from("notifications")
     .upsert({
       idempotency_key: `payment:${payment.id}:start-production`,
-      event_type: "START_PRODUCTION_INTERNAL",
+      event_type: "PAYMENT_CAPTURED_INTERNAL",
       request_id: request.id,
       offer_id: payment.offer.id,
       payment_id: payment.id,
@@ -189,28 +198,25 @@ export async function deliverCapturedPaymentNotifications(
   const results = await Promise.all([
     deliverNotification(admin, customerNotification.id, {
       to: request.email,
-      subject: `Order confirmed ${request.public_reference}`,
+      subject: `Payment confirmed ${request.public_reference}`,
+      replyTo: ORDERS_EMAIL,
       text:
-        `Payment of ${money} is verified. Your order is confirmed and production can begin. Agreed production period: ${payment.offer.production_window}.`,
-      html: `<p>Hello ${
-        escapeHtml(request.customer_name)
-      },</p><p>Payment of <strong>${
-        escapeHtml(money)
-      }</strong> is verified for ${
-        escapeHtml(request.public_reference)
-        }.</p><p>Your order is confirmed and production can begin. Agreed production period: ${
-        escapeHtml(payment.offer.production_window)
-      }.</p>`,
+        `Hello ${request.customer_name},\n\nPayment of ${money} is verified for ${request.public_reference}. Your order and the agreed production period are confirmed: ${payment.offer.production_window}. We will send a separate update when work begins. A fixed delivery date applies only if the private offer expressly states one.\n\nBata Woodworks\n${ORDERS_EMAIL}`,
+      html: wrapEmailHtml(
+        "Payment confirmed",
+        `<p>Hello ${escapeHtml(request.customer_name)},</p><p>Payment of <strong>${escapeHtml(money)}</strong> is verified for ${escapeHtml(request.public_reference)}.</p><p>Your order and agreed production period are confirmed: <strong>${escapeHtml(payment.offer.production_window)}</strong>.</p><p>We will send a separate update when work begins. A fixed delivery date applies only if the private offer expressly states one.</p>`,
+      ),
     }),
     deliverNotification(admin, internalId, {
       to: ownerEmail,
-      subject: `START PRODUCTION — ${request.public_reference}`,
+      subject: `PAYMENT VERIFIED — schedule ${request.public_reference}`,
+      replyTo: request.email,
       text:
-        `Verified payment received for ${request.public_reference}. Start production for ${payment.offer.project_title}.`,
-      html:
-        `<p><strong>START PRODUCTION</strong></p><p>Verified payment received for ${
-          escapeHtml(request.public_reference)
-        }.</p><p>${escapeHtml(payment.offer.project_title)}</p>`,
+        `Verified payment received for ${request.public_reference}. The approved project ${payment.offer.project_title} can now be scheduled within its agreed production period. Move it to PRODUCTION only when work actually begins. Replying to this message replies to the customer.`,
+      html: wrapEmailHtml(
+        "Payment verified — schedule approved work",
+        `<p>Verified payment received for <strong>${escapeHtml(request.public_reference)}</strong>.</p><p>${escapeHtml(payment.offer.project_title)} can now be scheduled within its agreed production period.</p><p>Move it to <strong>PRODUCTION</strong> only when work actually begins. Replying to this message replies to the customer.</p>`,
+      ),
     }),
   ]);
   return results.every(Boolean);

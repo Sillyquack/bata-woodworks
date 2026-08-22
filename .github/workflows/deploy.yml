@@ -44,6 +44,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Validate production configuration
+        run: npm run check:production-config
+
       - name: Build
         run: npm run build
 

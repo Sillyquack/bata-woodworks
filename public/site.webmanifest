@@ -1,0 +1,17 @@
+{
+  "name": "Bata Woodworks",
+  "short_name": "Bata",
+  "description": "Selected custom woodwork from reclaimed materials.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11100e",
+  "theme_color": "#11100e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

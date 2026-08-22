@@ -3,7 +3,17 @@ import { withSupabase } from "@supabase/server";
 import { ApiError, assertAllowedOrigin, errorResponse, json, options, requireMethod } from "../_shared/http.ts";
 import { generateOfferToken, sha256Hex } from "../_shared/crypto.ts";
 import { validateFile } from "../_shared/files.ts";
-import { emailProviderMode, escapeHtml, sendTransactionalEmail } from "../_shared/email.ts";
+import {
+  emailProviderMode,
+  escapeHtml,
+  sendTransactionalEmail,
+  wrapEmailHtml,
+} from "../_shared/email.ts";
+import {
+  ORDERS_EMAIL,
+  PUBLIC_EMAIL,
+  legalTradingEnabled,
+} from "../_shared/identity.ts";
 
 const transitions: Record<string, string[]> = {
   NEW: ["REVIEW", "DECLINED"],
@@ -59,6 +69,7 @@ async function listQueue(admin: any) {
     requested_timeline, requested_date, privacy_version, consent_accepted_at, status,
     internal_notes, ready_instructions,
     attachments:request_attachments(id, bucket_id, object_path, original_name, mime_type),
+    notifications(id, event_type, status, attempts, last_error, created_at, sent_at),
     offers(
       id, version, created_at, updated_at, issued_at, status, project_title, specification,
       materials_finish, price_minor, delivery_charge_minor, total_minor, currency,
@@ -83,7 +94,10 @@ async function listQueue(admin: any) {
 
 async function recordEmailResult(admin: any, notificationId: string, email: Parameters<typeof sendTransactionalEmail>[0]) {
   try {
-    const result = await sendTransactionalEmail(email);
+    const result = await sendTransactionalEmail({
+      ...email,
+      idempotencyKey: email.idempotencyKey ?? `notification-${notificationId}`,
+    });
     await admin.from("notifications").update({
       status: "SENT", provider_message_id: result.id, attempts: 1,
       last_error: null, sent_at: new Date().toISOString(),
@@ -114,7 +128,7 @@ async function updateRequest(admin: any, user: any, body: any) {
   if (nextStatus === "READY" && !readyInstructions) {
     throw new ApiError(400, "ready_instructions_required", "Pickup or delivery instructions are required for READY.");
   }
-  if (["READY", "DECLINED"].includes(nextStatus) && emailProviderMode() === "disabled") {
+  if (["PRODUCTION", "READY", "DELIVERED", "DECLINED"].includes(nextStatus) && emailProviderMode() === "disabled") {
     throw new ApiError(503, "email_not_configured", "Transactional email is required for this status update.");
   }
 
@@ -136,8 +150,14 @@ async function updateRequest(admin: any, user: any, body: any) {
   }
 
   let notificationSent: boolean | null = null;
-  if (["READY", "DECLINED"].includes(nextStatus) && nextStatus !== current.status) {
-    const eventType = nextStatus === "READY" ? "ORDER_READY_CUSTOMER" : "REQUEST_DECLINED_CUSTOMER";
+  if (["PRODUCTION", "READY", "DELIVERED", "DECLINED"].includes(nextStatus) && nextStatus !== current.status) {
+    const eventType = nextStatus === "PRODUCTION"
+      ? "PRODUCTION_STARTED_CUSTOMER"
+      : nextStatus === "READY"
+      ? "ORDER_READY_CUSTOMER"
+      : nextStatus === "DELIVERED"
+      ? "ORDER_CLOSED_CUSTOMER"
+      : "REQUEST_DECLINED_CUSTOMER";
     const { data: notification, error: notificationError } = await admin.from("notifications").upsert({
       idempotency_key: `request:${requestId}:${eventType.toLowerCase()}`,
       event_type: eventType,
@@ -149,16 +169,48 @@ async function updateRequest(admin: any, user: any, body: any) {
       await admin.from("notifications").select("id")
         .eq("idempotency_key", `request:${requestId}:${eventType.toLowerCase()}`).single()
     ).data.id;
+    const production = nextStatus === "PRODUCTION";
     const ready = nextStatus === "READY";
+    const delivered = nextStatus === "DELIVERED";
+    const subject = production
+      ? `Work has started — ${current.public_reference}`
+      : ready
+      ? `Your order is ready — ${current.public_reference}`
+      : delivered
+      ? `Order complete — ${current.public_reference}`
+      : `Request update — ${current.public_reference}`;
+    const text = production
+      ? `Hello ${current.customer_name},\n\nWork has started on order ${current.public_reference}. The agreed production period in your paid private offer remains the applicable timing; no fixed delivery date applies unless that offer expressly states one.\n\nBata Woodworks\n${ORDERS_EMAIL}`
+      : ready
+      ? `Hello ${current.customer_name},\n\nYour order ${current.public_reference} is ready. ${readyInstructions}\n\nBata Woodworks\n${ORDERS_EMAIL}`
+      : delivered
+      ? `Hello ${current.customer_name},\n\nOrder ${current.public_reference} has been recorded as delivered or collected. Thank you for choosing Bata Woodworks. This status update does not limit any mandatory complaint or reclamation rights.\n\nBata Woodworks\n${ORDERS_EMAIL}`
+      : `Hello ${current.customer_name},\n\nThank you for request ${current.public_reference}. We are unable to accept this project. No production capacity was reserved.\n\nBata Woodworks\n${PUBLIC_EMAIL}`;
+    const html = production
+      ? wrapEmailHtml(
+        "Work has started",
+        `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Work has started on order <strong>${escapeHtml(current.public_reference)}</strong>.</p><p>The agreed production period in your paid private offer remains the applicable timing. No fixed delivery date applies unless that offer expressly states one.</p>`,
+      )
+      : ready
+      ? wrapEmailHtml(
+        "Your order is ready",
+        `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Your order <strong>${escapeHtml(current.public_reference)}</strong> is ready.</p><p>${escapeHtml(readyInstructions)}</p>`,
+      )
+      : delivered
+      ? wrapEmailHtml(
+        "Order complete",
+        `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Order <strong>${escapeHtml(current.public_reference)}</strong> has been recorded as delivered or collected.</p><p>Thank you for choosing Bata Woodworks. This status update does not limit any mandatory complaint or reclamation rights.</p>`,
+      )
+      : wrapEmailHtml(
+        "Request update",
+        `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Thank you for request <strong>${escapeHtml(current.public_reference)}</strong>. We are unable to accept this project.</p><p>No production capacity was reserved.</p>`,
+      );
     notificationSent = await recordEmailResult(admin, notificationId, {
       to: current.email,
-      subject: ready ? `Your order is ready — ${current.public_reference}` : `Request update — ${current.public_reference}`,
-      text: ready
-        ? `Your order ${current.public_reference} is ready. ${readyInstructions}`
-        : `Thank you for request ${current.public_reference}. We are unable to accept this project.`,
-      html: ready
-        ? `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Your order <strong>${escapeHtml(current.public_reference)}</strong> is ready.</p><p>${escapeHtml(readyInstructions)}</p>`
-        : `<p>Hello ${escapeHtml(current.customer_name)},</p><p>Thank you for request <strong>${escapeHtml(current.public_reference)}</strong>. We are unable to accept this project.</p>`,
+      subject,
+      text,
+      html,
+      replyTo: production || ready || delivered ? ORDERS_EMAIL : PUBLIC_EMAIL,
     });
   }
 
@@ -260,6 +312,9 @@ async function sendOffer(admin: any, user: any, body: any) {
   if (emailProviderMode() === "disabled") {
     throw new ApiError(503, "email_not_configured", "Transactional email must be configured before sending an offer.");
   }
+  if (!legalTradingEnabled()) {
+    throw new ApiError(503, "legal_trading_disabled", "Legal trading is disabled until the registered business identity and consumer terms are approved.");
+  }
   const siteUrl = Deno.env.get("SITE_URL");
   if (!siteUrl) throw new ApiError(503, "site_url_missing", "SITE_URL is required.");
   const offerId = uuid(body.offerId, "offerId");
@@ -297,8 +352,12 @@ async function sendOffer(admin: any, user: any, body: any) {
   const emailSent = await recordEmailResult(admin, notification.id, {
     to: offer.request.email,
     subject: `Private offer ${offer.request.public_reference}`,
-    text: `Hello ${offer.request.customer_name}. Your private offer for ${offer.project_title} is ready: ${offerUrl} Total: ${money}. Agreed production period: ${offer.production_window}. Expires ${offer.expires_at}.`,
-    html: `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Your private offer for <strong>${escapeHtml(offer.project_title)}</strong> is ready.</p><p><a href="${escapeHtml(offerUrl)}">Review the private offer</a></p><p>Total: ${escapeHtml(money)}. Agreed production period: ${escapeHtml(offer.production_window)}. Expires ${escapeHtml(offer.expires_at)}.</p>`,
+    replyTo: ORDERS_EMAIL,
+    text: `Hello ${offer.request.customer_name},\n\nYour private offer for ${offer.project_title} is ready: ${offerUrl}\n\nTotal: ${money}.\nAgreed production period: ${offer.production_window}.\nOffer expiry: ${offer.expires_at}.\n\nA request is not an order. Review the exact scope and terms in the private offer before choosing the clearly labelled payment action.\n\nBata Woodworks\n${ORDERS_EMAIL}`,
+    html: wrapEmailHtml(
+      "Your private offer is ready",
+      `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Your private offer for <strong>${escapeHtml(offer.project_title)}</strong> is ready.</p><p><a href="${escapeHtml(offerUrl)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#c78345;color:#170f09;font-weight:700;text-decoration:none">Review the private offer</a></p><p>Total: <strong>${escapeHtml(money)}</strong><br>Agreed production period: ${escapeHtml(offer.production_window)}<br>Offer expiry: ${escapeHtml(offer.expires_at)}</p><p>A request is not an order. Review the exact scope and terms before choosing the clearly labelled payment action.</p>`,
+    ),
   });
   return {
     issued: true,
@@ -311,11 +370,14 @@ async function resendOffer(admin: any, body: any) {
   if (emailProviderMode() === "disabled") {
     throw new ApiError(503, "email_not_configured", "Transactional email must be configured before resending an offer.");
   }
+  if (!legalTradingEnabled()) {
+    throw new ApiError(503, "legal_trading_disabled", "Legal trading is disabled until the registered business identity and consumer terms are approved.");
+  }
   const siteUrl = Deno.env.get("SITE_URL");
   if (!siteUrl) throw new ApiError(503, "site_url_missing", "SITE_URL is required.");
   const offerId = uuid(body.offerId, "offerId");
   const { data: offer, error } = await admin.from("offers").select(`
-    id, request_id, version, status, project_title, total_minor, currency, expires_at,
+    id, request_id, version, status, project_title, production_window, total_minor, currency, expires_at,
     request:requests!inner(public_reference, customer_name, email)
   `).eq("id", offerId).single();
   if (error) throw error;
@@ -345,8 +407,12 @@ async function resendOffer(admin: any, body: any) {
   const emailSent = await recordEmailResult(admin, notification.id, {
     to: offer.request.email,
     subject: `Private offer ${offer.request.public_reference}`,
-    text: `Your current private offer link is: ${offerUrl} Total: ${money}. Expires ${offer.expires_at}. Previous links no longer work.`,
-    html: `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Use this current private link for <strong>${escapeHtml(offer.project_title)}</strong>. Previous links no longer work.</p><p><a href="${escapeHtml(offerUrl)}">Review the private offer</a></p><p>Total: ${escapeHtml(money)}. Expires ${escapeHtml(offer.expires_at)}.</p>`,
+    replyTo: ORDERS_EMAIL,
+    text: `Hello ${offer.request.customer_name},\n\nUse this current private offer link: ${offerUrl}\n\nPrevious links no longer work. Total: ${money}. Agreed production period: ${offer.production_window}. Offer expiry: ${offer.expires_at}.\n\nBata Woodworks\n${ORDERS_EMAIL}`,
+    html: wrapEmailHtml(
+      "Your current private offer link",
+      `<p>Hello ${escapeHtml(offer.request.customer_name)},</p><p>Use this current private link for <strong>${escapeHtml(offer.project_title)}</strong>. Previous links no longer work.</p><p><a href="${escapeHtml(offerUrl)}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#c78345;color:#170f09;font-weight:700;text-decoration:none">Review the private offer</a></p><p>Total: <strong>${escapeHtml(money)}</strong><br>Agreed production period: ${escapeHtml(offer.production_window)}<br>Offer expiry: ${escapeHtml(offer.expires_at)}</p>`,
+    ),
   });
   return { emailSent, previewUrl: emailProviderMode() === "log" ? offerUrl : undefined };
 }

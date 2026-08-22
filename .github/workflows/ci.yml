@@ -64,7 +64,7 @@ jobs:
           deno check --config supabase/functions/reconcile-payments/deno.json supabase/functions/reconcile-payments/index.ts
 
       - name: Edge decision tests
-        run: deno test --config supabase/functions/reconcile-payments/deno.json supabase/functions/_shared/reconciliation.test.ts supabase/functions/_shared/intake.test.ts
+        run: deno test --config supabase/functions/reconcile-payments/deno.json supabase/functions/_shared/reconciliation.test.ts supabase/functions/_shared/intake.test.ts supabase/functions/_shared/identity.test.ts
 
       - name: Start minimal local Supabase
         run: npx --yes supabase@2.115.0 start -x studio,imgproxy,logflare,vector,supavisor,realtime,storage-api,edge-runtime

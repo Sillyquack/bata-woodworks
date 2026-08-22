@@ -8,7 +8,9 @@ import {
   escapeHtml,
   internalEmail,
   sendTransactionalEmail,
+  wrapEmailHtml,
 } from "../_shared/email.ts";
+import { PUBLIC_EMAIL } from "../_shared/identity.ts";
 import { INTAKE_PAUSED_MESSAGE, isRequestIntakeOpen } from "../_shared/intake.ts";
 
 const requestTypes = new Set([
@@ -230,14 +232,25 @@ export default {
         updateNotification(admin, customerRow.id, sendTransactionalEmail({
           to: email,
           subject: `We received request ${createdRequest.public_reference}`,
-          text: `Hello ${customerName}, we received request ${createdRequest.public_reference}. Every request is reviewed individually; submission does not guarantee acceptance. We will send one offer link if the project is selected.`,
-          html: `<p>Hello ${safeName},</p><p>We received request <strong>${safeReference}</strong>.</p><p>Every request is reviewed individually; submission does not guarantee acceptance. If selected, you will receive one private offer link.</p>`,
+          replyTo: PUBLIC_EMAIL,
+          idempotencyKey: `request-${createdRequest.id}-customer-received`,
+          text: `Hello ${customerName},\n\nWe received request ${createdRequest.public_reference}. Management reviews every request before Bata is involved. Submission does not guarantee acceptance, and your preferred timing is context rather than a deadline. If Bata approves the project and a production period, you will receive one private offer.\n\nBata Woodworks\n${PUBLIC_EMAIL}`,
+          html: wrapEmailHtml(
+            "We received your request",
+            `<p>Hello ${safeName},</p><p>We received request <strong>${safeReference}</strong>.</p><p>Management reviews every request before Bata is involved. Submission does not guarantee acceptance, and preferred timing is context rather than a deadline.</p><p>If Bata approves the project and a production period, you will receive one private offer.</p>`,
+            `Request ${createdRequest.public_reference} has been received.`,
+          ),
         })),
         updateNotification(admin, internalRow.id, sendTransactionalEmail({
           to: ownerEmail,
           subject: `New request ${createdRequest.public_reference}`,
-          text: `New ${requestType} request from ${customerName}. Review it in the Bata order queue.`,
-          html: `<p>New <strong>${escapeHtml(requestType)}</strong> request from ${safeName}.</p><p>Reference: ${safeReference}. Review it in the Bata order queue.</p>`,
+          replyTo: email,
+          idempotencyKey: `request-${createdRequest.id}-manager-received`,
+          text: `New ${requestType} request from ${customerName}. Reference: ${createdRequest.public_reference}. Review and filter it in the Bata request queue before involving Bata. Replying to this message replies to the customer.`,
+          html: wrapEmailHtml(
+            "New request for management review",
+            `<p>New <strong>${escapeHtml(requestType)}</strong> request from ${safeName}.</p><p>Reference: <strong>${safeReference}</strong>. Review and filter it in the Bata request queue before involving Bata.</p><p>Replying to this message replies to the customer.</p>`,
+          ),
         })),
       ]);
 

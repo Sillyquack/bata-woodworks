@@ -18,7 +18,7 @@ function Hero() {
         </div>
       </div>
       <div className="hero-card hero-photo">
-        <img src={`${import.meta.env.BASE_URL}images/hero-bata.jpg`} alt="Craftsman working with wood" />
+        <img src={`${import.meta.env.BASE_URL}images/hero-bata.jpg`} alt="Bata shaping a reclaimed wood piece in the workshop" width="1466" height="2200" fetchPriority="high" />
         <div className="hero-card-label"><span>Reclaimed</span><strong>Built with intention</strong></div>
       </div>
     </section>
@@ -29,7 +29,7 @@ function ValueStrip() {
   return (
     <section className="value-strip" aria-label="Core values">
       <div><Leaf /><h3>Reclaimed materials</h3><p>Wood that might have been discarded becomes the beginning of something lasting.</p></div>
-      <div><Hammer /><h3>Lifetime craft</h3><p>Practical carpentry skill meets artistic instinct, detail and precision.</p></div>
+      <div><Hammer /><h3>Lifetime craft</h3><p>Decades of practical carpentry meet artistic instinct, detail and precision.</p></div>
       <div><Sparkles /><h3>Intentional capacity</h3><p>Every request is reviewed. Limited capacity protects the creative work, so only selected projects move forward.</p></div>
     </section>
   )
@@ -46,7 +46,7 @@ function WorkGallery() {
       <div className="gallery-grid">
         {galleryItems.map((item) => (
           <article className="gallery-card" key={item.title}>
-            <div className="gallery-image"><img src={item.image} alt={item.title} /><span>{item.category}</span></div>
+            <div className="gallery-image"><img src={item.image} alt={item.alt} width={item.width} height={item.height} loading="lazy" decoding="async" /><span>{item.category}</span></div>
             <div><h3>{item.title}</h3><p>{item.description}</p></div>
           </article>
         ))}
@@ -61,7 +61,7 @@ function CustomProcess() {
     ['Management reviews the fit', 'Requests are filtered for scope and capacity first. They may be held or declined without taking Bata away from the workbench.'],
     ['Bata selects the work', 'Only projects Bata wants to make — and that fit his capacity, interests and creative direction — reach the offer stage.'],
     ['Review one private offer', 'Selected projects receive one link with the exact scope, drawing, price, delivery terms, Bata-approved production period and expiry.'],
-    ['Pay to start production', 'Only verified payment creates a production commitment. Automated updates follow when the piece enters production and is ready.'],
+    ['Accept the private offer', 'Only verified payment accepts the exact offer and production period. A separate update follows when work actually begins.'],
   ]
   return (
     <section className="section split" id="custom">
@@ -83,11 +83,11 @@ function CustomProcess() {
 function About() {
   return (
     <section className="about-section" id="about">
-      <div className="about-image"><img src={`${import.meta.env.BASE_URL}images/about-bata.jpg`} alt="Woodworking process" /><span>Bata at work</span></div>
+      <div className="about-image"><img src={`${import.meta.env.BASE_URL}images/about-bata.jpg`} alt="Bata working carefully on a wood surface" width="1466" height="2200" loading="lazy" decoding="async" /><span>Bata at work</span></div>
       <div className="about-copy">
         <p className="eyebrow">About the maker</p>
         <h2>A carpenter who sees possibility where others see waste.</h2>
-        <p>Bata has spent a lifetime working with wood. Fast, precise and endlessly creative, he has the kind of practical imagination that can turn rough timber into something that feels like it was always meant to exist.</p>
+        <p>Bata has spent a lifetime working with wood. Precise and endlessly creative, he has the kind of practical imagination that can turn rough timber into something that feels like it was always meant to exist.</p>
         <p>His personal work begins with discarded timber, leftover materials and wood that still has life in it. Many pieces include hand-burned patterns and surface details, making each one unique.</p>
       </div>
     </section>
@@ -98,9 +98,9 @@ function AvailablePieces() {
   return (
     <section className="section" id="available">
       <div className="section-heading compact">
-        <p className="eyebrow">Available pieces</p>
-        <h2>Small drops. Rare pieces. Made when ready.</h2>
-        <p>Selected objects appear in small numbers. Ask about a piece through the same reviewed request process.</p>
+        <p className="eyebrow">Occasional pieces</p>
+        <h2>Small drops. Rare pieces. Shared when ready.</h2>
+        <p>Selected objects may appear in small numbers. Availability is confirmed only through the same reviewed request and private-offer process.</p>
       </div>
       <div className="product-grid">
         {availablePieces.map((piece) => (
@@ -116,6 +116,7 @@ function AvailablePieces() {
 
 function RequestForm() {
   const [state, setState] = useState({ phase: 'idle', message: '', reference: '' })
+  const [files, setFiles] = useState({ message: 'No files selected.', error: '' })
   const idempotencyKey = useRef(crypto.randomUUID())
   const statusRef = useRef(null)
 
@@ -131,11 +132,28 @@ function RequestForm() {
       const result = await submitRequest(data, idempotencyKey.current)
       setState({ phase: 'success', message: 'Your request has been received.', reference: result.reference })
       form.reset()
+      setFiles({ message: 'No files selected.', error: '' })
       idempotencyKey.current = crypto.randomUUID()
     } catch (error) {
       setState({ phase: 'error', message: error.message, reference: '' })
       requestAnimationFrame(() => statusRef.current?.focus())
     }
+  }
+
+  function handleFiles(event) {
+    const selected = [...(event.target.files ?? [])]
+    const total = selected.reduce((sum, file) => sum + file.size, 0)
+    let error = ''
+    if (selected.length > 5) error = 'Choose no more than 5 files.'
+    else if (selected.some((file) => file.size > 5 * 1024 * 1024)) error = 'Each file must be 5 MB or smaller.'
+    else if (total > 15 * 1024 * 1024) error = 'Files may total no more than 15 MB.'
+    event.target.setCustomValidity(error)
+    setFiles({
+      error,
+      message: selected.length === 0
+        ? 'No files selected.'
+        : `${selected.length} file${selected.length === 1 ? '' : 's'} selected · ${(total / 1024 / 1024).toFixed(1)} MB total.`,
+    })
   }
 
   return (
@@ -166,7 +184,7 @@ function RequestForm() {
             {state.message} {state.reference && <><br />Reference: <strong>{state.reference}</strong>. Keep this for your records.</>}
           </div>
         )}
-        <fieldset className="request-fields" disabled={!requestIntakeOpen}>
+        <fieldset className="request-fields" disabled={!requestIntakeOpen || !backendConfigured}>
         <div className="form-row">
           <label>Name<input name="name" autoComplete="name" type="text" required minLength="2" maxLength="160" /></label>
           <label>Email<input name="email" autoComplete="email" type="email" required maxLength="320" /></label>
@@ -189,11 +207,12 @@ function RequestForm() {
         <label className="file-label">
           <span>Inspiration or reference files <span className="optional">Optional</span></span>
           <span className="file-help"><Paperclip size={16} /> Up to 5 JPEG, PNG, WebP or PDF files; 5 MB each and 15 MB total.</span>
-          <input name="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" />
+          <input name="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" onChange={handleFiles} aria-describedby="attachment-status" />
+          <small id="attachment-status" className={files.error ? 'field-help file-error' : 'field-help'} aria-live="polite">{files.error || files.message}</small>
         </label>
         <label className="checkbox-label">
           <input name="privacyAccepted" type="checkbox" required />
-          <span>I have read the <a href="#/privacy" target="_blank" rel="noreferrer">privacy notice</a>, consent to this request being processed, and understand that submission does not guarantee acceptance.</span>
+          <span>I have read the <a href="#/privacy" target="_blank" rel="noreferrer">privacy notice</a> and understand that submission does not guarantee acceptance.</span>
         </label>
         <button className="primary-button submit-button" type="submit" disabled={!backendConfigured || !requestIntakeOpen || state.phase === 'sending'}>
           {state.phase === 'sending' ? 'Sending…' : 'Submit request'} <Mail size={18} />
@@ -209,5 +228,5 @@ function CarpentryNote() {
 }
 
 export default function HomePage() {
-  return <><Header /><main><Hero /><ValueStrip /><WorkGallery /><CustomProcess /><About /><AvailablePieces /><RequestForm /><CarpentryNote /></main><Footer /></>
+  return <><Header /><main id="main-content" tabIndex="-1"><Hero /><ValueStrip /><WorkGallery /><CustomProcess /><About /><AvailablePieces /><RequestForm /><CarpentryNote /></main><Footer /></>
 }

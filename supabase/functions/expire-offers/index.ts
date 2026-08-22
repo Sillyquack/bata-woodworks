@@ -2,7 +2,12 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
 import { ApiError, errorResponse, json, requireMethod } from "../_shared/http.ts";
 import { timingSafeEqual } from "../_shared/crypto.ts";
-import { escapeHtml, sendTransactionalEmail } from "../_shared/email.ts";
+import {
+  escapeHtml,
+  sendTransactionalEmail,
+  wrapEmailHtml,
+} from "../_shared/email.ts";
+import { ORDERS_EMAIL } from "../_shared/identity.ts";
 
 export default {
   fetch: withSupabase({ auth: "none" }, async (req, ctx) => {
@@ -50,8 +55,13 @@ export default {
           const sent = await sendTransactionalEmail({
             to: offer.customer_email,
             subject: `Offer expired — ${offer.public_reference}`,
-            text: `The offer for ${offer.project_title} has expired without payment. Production capacity was not reserved.`,
-            html: `<p>The offer for <strong>${escapeHtml(offer.project_title)}</strong> (${escapeHtml(offer.public_reference)}) has expired without payment.</p><p>Production capacity was not reserved.</p>`,
+            replyTo: ORDERS_EMAIL,
+            idempotencyKey: `notification-${row.id}`,
+            text: `The private offer for ${offer.project_title} (${offer.public_reference}) has expired without payment. It can no longer be accepted, and production capacity was not reserved. Contact ${ORDERS_EMAIL} if you need to discuss a new request; acceptance is not guaranteed.`,
+            html: wrapEmailHtml(
+              "Your private offer has expired",
+              `<p>The private offer for <strong>${escapeHtml(offer.project_title)}</strong> (${escapeHtml(offer.public_reference)}) has expired without payment.</p><p>It can no longer be accepted, and production capacity was not reserved.</p><p>You may reply if you need to discuss a new request; acceptance is not guaranteed.</p>`,
+            ),
           });
           await admin.from("notifications").update({
             status: "SENT",

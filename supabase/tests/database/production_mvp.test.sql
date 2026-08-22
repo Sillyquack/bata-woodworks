@@ -9,7 +9,7 @@ select has_table('public', 'payment_events', 'payment events table exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.requests'::regclass), 'requests use RLS');
 select ok((select relrowsecurity from pg_class where oid = 'public.offers'::regclass), 'offers use RLS');
 select ok(not has_table_privilege('anon', 'public.requests', 'select'), 'anonymous role cannot read requests');
-select ok(has_table_privilege('authenticated', 'public.requests', 'select'), 'authenticated manager path has table privilege');
+select ok(not has_table_privilege('authenticated', 'public.requests', 'select'), 'browser JWT cannot query customer requests directly');
 select ok(not has_function_privilege('anon', 'public.expire_due_offers()', 'execute'), 'anonymous role cannot expire offers');
 select ok(has_function_privilege('service_role', 'public.expire_due_offers()', 'execute'), 'service role can run expiry');
 select ok(not has_function_privilege('anon', 'public.guard_payment_capture(text,text)', 'execute'), 'anonymous role cannot guard capture');

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Menu, X } from 'lucide-react'
+import { publicIdentity } from '../config/identity'
 
 const homeLinks = [
   ['Work', '#work'],
   ['Custom', '#custom'],
   ['About', '#about'],
-  ['Available', '#available'],
+  ['Pieces', '#available'],
   ['Request', '#request'],
 ]
 
@@ -47,7 +48,9 @@ export function Header({ compact = false }) {
   }, [open])
 
   return (
-    <header className="site-header">
+    <>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <header className="site-header">
       <a className="brand" href={compact ? import.meta.env.BASE_URL : '#top'} aria-label="Bata Woodworks home">
         <span className="brand-mark">BW</span>
         <span>
@@ -69,7 +72,8 @@ export function Header({ compact = false }) {
           {!compact && <a className="mobile-cta" href="#request" onClick={() => setOpen(false)}>Request a piece</a>}
         </div>
       )}
-    </header>
+      </header>
+    </>
   )
 }
 
@@ -79,6 +83,7 @@ export function Footer() {
       <div>
         <strong>Bata Woodworks</strong>
         <p>Custom woodwork from reclaimed materials.</p>
+        <a className="footer-email" href={`mailto:${publicIdentity.publicEmail}`}>{publicIdentity.publicEmail}</a>
       </div>
       <nav className="footer-links" aria-label="Legal and internal links">
         <a href="#/privacy">Privacy</a>
@@ -91,5 +96,5 @@ export function Footer() {
 }
 
 export function PageShell({ children }) {
-  return <><Header compact /><main className="app-page">{children}</main><Footer /></>
+  return <><Header compact /><main className="app-page" id="main-content" tabIndex="-1">{children}</main><Footer /></>
 }

@@ -2,11 +2,24 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
 import { ApiError, assertAllowedOrigin, errorResponse, json, options, requireMethod } from "../_shared/http.ts";
 import { sha256Hex } from "../_shared/crypto.ts";
+import {
+  isNonProductionEnvironment,
+  legalTradingEnabled,
+} from "../_shared/identity.ts";
 
 function paymentMethods() {
+  if (!legalTradingEnabled()) return [];
   const provider = Deno.env.get("PAYMENT_PROVIDER") ?? "disabled";
-  if (provider === "mock") return ["MOCK"];
+  if (provider === "mock") {
+    return isNonProductionEnvironment() && Deno.env.get("ALLOW_MOCK_PAYMENTS") === "true"
+      ? ["MOCK"]
+      : [];
+  }
   if (provider !== "vipps") return [];
+  if (
+    Deno.env.get("VIPPS_ENVIRONMENT") === "production" &&
+    Deno.env.get("VIPPS_LIVE_ENABLED") !== "true"
+  ) return [];
   const methods = ["WALLET"];
   if (Deno.env.get("VIPPS_ENVIRONMENT") === "production" && Deno.env.get("VIPPS_CARD_ENABLED") === "true") {
     methods.push("CARD");

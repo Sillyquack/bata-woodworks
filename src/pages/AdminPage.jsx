@@ -31,7 +31,7 @@ function Login({ onLogin }) {
   }
   return (
     <section className="login-card">
-      <ShieldCheck size={28} /><p className="eyebrow">Internal</p><h1>Manager order queue</h1>
+      <ShieldCheck size={28} /><p className="eyebrow">Internal</p><h1>Manager request &amp; order queue</h1>
       <p>Authorized Bata managers only. Public sign-up is disabled.</p>
       {error && <div className="form-message error-message" role="alert">{error}</div>}
       <form onSubmit={submit} className="admin-form">
@@ -146,6 +146,7 @@ function RequestDetail({ request, refresh }) {
   const offers = [...request.offers].sort((a, b) => b.version - a.version)
   const draft = offers.find((offer) => offer.status === 'DRAFT')
   const sent = offers.find((offer) => offer.status === 'SENT')
+  const failedNotifications = (request.notifications ?? []).filter((notification) => notification.status === 'FAILED')
 
   useEffect(() => {
     setNotes(request.internal_notes ?? '')
@@ -188,6 +189,14 @@ function RequestDetail({ request, refresh }) {
       <div className="detail-heading"><div><p className="eyebrow">{request.public_reference}</p><h2>{request.request_type}</h2></div><span className={`status-pill status-${request.status.toLowerCase()}`}>{request.status}</span></div>
       {notice && <div className="form-message success-message" role="status">{notice}{previewUrl && <><br /><a href={previewUrl} target="_blank" rel="noreferrer">Open local test offer</a></>}</div>}
       {error && <div className="form-message error-message" role="alert">{error}</div>}
+      {failedNotifications.length > 0 && (
+        <section className="manager-section notification-warning" aria-labelledby="notification-failures-title">
+          <h3 id="notification-failures-title">Email delivery needs attention</h3>
+          {failedNotifications.map((notification) => (
+            <p key={notification.id}><strong>{notification.event_type.replaceAll('_', ' ')}</strong> · {notification.attempts} attempt{notification.attempts === 1 ? '' : 's'} · {notification.last_error || 'Provider did not confirm delivery.'}</p>
+          ))}
+        </section>
+      )}
       <section className="manager-section customer-input">
         <h3>Customer input</h3>
         <dl className="detail-grid">
@@ -247,7 +256,7 @@ function Queue() {
 
   return (
     <section className="admin-page">
-      <div className="admin-toolbar"><div><p className="eyebrow">Internal</p><h1>Order queue</h1></div><div className="admin-actions"><button className="secondary-button" onClick={load}><RefreshCw size={16} /> Refresh</button><button className="secondary-button" onClick={() => supabase.auth.signOut()}><LogOut size={16} /> Sign out</button></div></div>
+      <div className="admin-toolbar"><div><p className="eyebrow">Internal</p><h1>Request &amp; order queue</h1></div><div className="admin-actions"><button className="secondary-button" onClick={load}><RefreshCw size={16} /> Refresh</button><button className="secondary-button" onClick={() => supabase.auth.signOut()}><LogOut size={16} /> Sign out</button></div></div>
       {error && <div className="form-message error-message" role="alert">{error}</div>}
       <div className="queue-layout">
         <aside className="queue-list" aria-label="Requests">

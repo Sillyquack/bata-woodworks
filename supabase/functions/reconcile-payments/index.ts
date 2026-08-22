@@ -197,9 +197,11 @@ export default {
           await admin.from("payments").update({ reconciliation_error: message })
             .eq("id", payment.payment_id);
           console.error(
-            "Payment reconciliation failed",
-            payment.provider_reference,
-            message,
+            JSON.stringify({
+              event: "payment_reconciliation_failed",
+              paymentId: payment.payment_id,
+              errorName: paymentError instanceof Error ? paymentError.name : "Error",
+            }),
           );
         }
       }

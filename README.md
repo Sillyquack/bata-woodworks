@@ -2,7 +2,7 @@
 
 A production-oriented request-to-purchase MVP for selectively commissioned woodwork. Management filters public requests around Bata's interests, creative direction and capacity; only Bata-approved projects and production periods can become immutable private offers, and server-verified payment advances an accepted offer into production.
 
-The application deliberately fails closed: no request can be submitted until the approved privacy version is configured, no offer can be purchased without transactional email and a payment provider, and a browser redirect can never mark an order paid.
+The application deliberately fails closed: no request can be submitted until the approved privacy version and intake switches are configured, no offer can be issued or purchased until the legal trading gate is approved, and a browser redirect can never mark an order paid.
 
 ## Included
 
@@ -14,10 +14,10 @@ The application deliberately fails closed: no request can be submitted until the
 - Vipps MobilePay ePayment adapter plus a strictly local/test mock provider
 - Signed and provider-verified webhook handling with replay protection and exact-amount enforcement
 - Scheduled Vipps polling for stale payments, guarded capture and automatic release after offer expiry
-- Atomic `OFFER_SENT → PAID → PRODUCTION → READY → DELIVERED` state changes and auditable history
+- Atomic `OFFER_SENT → PAID → PRODUCTION → READY → DELIVERED` state changes, auditable history and separate payment/production-start messaging
 - Resend transactional email adapter, idempotent notification records and safe retry paths
-- PostgreSQL RLS, private Storage buckets, manager authorization from fresh Auth metadata, rate limiting and idempotency controls
-- Legal/privacy launch gates that identify every unresolved owner decision as `needs_owner`
+- Browser-role Data API revocation, PostgreSQL RLS defense in depth, private Storage, manager authorization from fresh Auth metadata, rate limiting and idempotency controls
+- Centralized verified `.no` identity plus explicit ENK, VAT, legal, intake and live-payment launch gates
 
 ## Local development
 
@@ -34,7 +34,7 @@ npm run dev
 
 Use the local publishable key printed by `supabase status` in `.env.local`. Local ports are intentionally namespaced under `5632x` in [supabase/config.toml](supabase/config.toml).
 
-The checked-in examples contain no credentials. Never commit `.env.local`, Supabase service-role keys, Vipps secrets, Resend keys, webhook secrets or cron secrets.
+The checked-in examples contain no credentials. Never commit `.env.local`, Supabase secret/service-role keys, Vipps secrets, Resend keys, webhook secrets or cron secrets. `APP_ENV=local` is required for the mock checkout; production rejects it independently of the mock switches.
 
 ## Verification
 
@@ -46,6 +46,8 @@ npx --yes supabase@2.115.0 db test --local
 npx --yes supabase@2.115.0 db advisors --local --type security --fail-on warn
 npx --yes supabase@2.115.0 db advisors --local --type performance --fail-on warn
 ```
+
+The Pages workflow also runs `npm run check:production-config` with its required `VITE_` repository variables before it can build a deployable artifact.
 
 Run the full HTTP integration test while the local stack and Edge Functions are running:
 
@@ -62,7 +64,7 @@ The database suite covers RLS and Storage isolation, offer immutability, exact p
 
 ## Production handoff
 
-Follow [docs/production-runbook.md](docs/production-runbook.md) in order. It contains the owner-supplied values, Supabase/Vipps/Resend setup, manager creation, deployment commands, webhook/expiry/reconciliation scheduling, smoke tests, rollback guidance and the final launch checklist.
+Follow [docs/production-runbook.md](docs/production-runbook.md) in order. It contains the verified `.no`/`.com` DNS plan, One.com mail preservation, ENK/legal gates, Supabase/Vipps/Resend setup, manager creation, deployment commands, scheduling, monitoring, recovery, rollback guidance and the final launch checklist.
 
 Implementation and security invariants are recorded in [docs/implementation-notes.md](docs/implementation-notes.md).
 

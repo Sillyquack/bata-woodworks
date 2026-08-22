@@ -29,6 +29,17 @@ function required(name: string) {
   return value;
 }
 
+function logVippsFailure(operation: string, status: number, payload: unknown) {
+  const value = payload as Record<string, unknown> | null;
+  const providerCode = value && (value.errorCode ?? value.type ?? value.name);
+  console.error(JSON.stringify({
+    event: "vipps_request_failed",
+    operation,
+    status,
+    providerCode: providerCode ? String(providerCode).slice(0, 120) : undefined,
+  }));
+}
+
 function vippsBaseUrl() {
   const environment = Deno.env.get("VIPPS_ENVIRONMENT") ?? "test";
   if (environment === "production") {
@@ -125,11 +136,7 @@ export async function createVippsPayment(input: {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload.redirectUrl) {
-    console.error(
-      "Vipps create failed",
-      response.status,
-      JSON.stringify(payload).slice(0, 800),
-    );
+    logVippsFailure("create", response.status, payload);
     throw new ApiError(
       502,
       "payment_provider_failed",
@@ -181,11 +188,7 @@ export async function captureVippsPayment(
     !response.ok || captured?.value !== amount.value ||
     captured?.currency !== amount.currency
   ) {
-    console.error(
-      "Vipps capture failed",
-      response.status,
-      JSON.stringify(payload).slice(0, 800),
-    );
+    logVippsFailure("capture", response.status, payload);
     throw new ApiError(
       502,
       "payment_capture_failed",
@@ -218,11 +221,7 @@ export async function cancelVippsPayment(
   const reservationReleased = state === "TERMINATED" ||
     (authorized > 0 && cancelled >= authorized - captured);
   if (!response.ok || !reservationReleased) {
-    console.error(
-      "Vipps cancel failed",
-      response.status,
-      JSON.stringify(payload).slice(0, 800),
-    );
+    logVippsFailure("cancel", response.status, payload);
     throw new ApiError(
       502,
       "payment_cancel_failed",

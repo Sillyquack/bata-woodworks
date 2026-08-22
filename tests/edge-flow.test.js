@@ -111,6 +111,8 @@ integration('request → offer → mock payment → production flow is server-au
     }
     const initialQueue = await invoke({ action: 'list' })
     assert.ok(initialQueue.requests.some((item) => item.id === request.id))
+    const managerDirectRead = await manager.from('requests').select('id')
+    assert.ok(managerDirectRead.error, 'manager browser JWT must use admin-api rather than query customer tables directly')
     await invoke({ action: 'set_request', requestId: request.id, status: 'REVIEW', internalNotes: 'Qualified locally.' })
     await invoke({ action: 'set_request', requestId: request.id, status: 'DESIGN', internalNotes: 'Drawing prepared.' })
     const saved = await invoke({
@@ -217,6 +219,8 @@ integration('request → offer → mock payment → production flow is server-au
     await invoke({ action: 'set_request', requestId: request.id, status: 'PRODUCTION', internalNotes: 'Started.' })
     const ready = await invoke({ action: 'set_request', requestId: request.id, status: 'READY', internalNotes: 'Finished.', readyInstructions: 'Collect by appointment.' })
     assert.equal(ready.notificationSent, true)
+    const delivered = await invoke({ action: 'set_request', requestId: request.id, status: 'DELIVERED', internalNotes: 'Collected.' })
+    assert.equal(delivered.notificationSent, true)
 
     const expiryRequestId = randomUUID()
     const expiryOfferId = randomUUID()

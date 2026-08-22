@@ -20,6 +20,7 @@ import {
   getVippsPayment,
   verifyVippsWebhook,
 } from "../_shared/vipps.ts";
+import { isNonProductionEnvironment } from "../_shared/identity.ts";
 
 const knownEvents = new Set([
   "CREATED",
@@ -52,7 +53,10 @@ export default {
       const provider = Deno.env.get("PAYMENT_PROVIDER") ?? "disabled";
       let signatureVerified = false;
       if (provider === "mock") {
-        if (Deno.env.get("ALLOW_MOCK_PAYMENTS") !== "true") {
+        if (
+          !isNonProductionEnvironment() ||
+          Deno.env.get("ALLOW_MOCK_PAYMENTS") !== "true"
+        ) {
           throw new ApiError(
             503,
             "mock_payments_disabled",

@@ -3,10 +3,11 @@ import { CheckCircle2, Clock3, FileText, ShieldCheck } from 'lucide-react'
 import { PageShell } from '../components/Chrome'
 import { loadOffer, startPayment } from '../lib/backend'
 import { formatDateTime, formatMoney } from '../lib/format'
+import { rememberPaymentReturn } from '../lib/payment-return'
 
 function StatusNotice({ offer, returned }) {
   if (offer.status === 'PAID' || offer.paymentStatus === 'CAPTURED') {
-    return <div className="offer-notice paid-notice" role="status"><CheckCircle2 /> <span><strong>Payment verified.</strong> Your order is confirmed for production.</span></div>
+    return <div className="offer-notice paid-notice" role="status"><CheckCircle2 /> <span><strong>Payment verified.</strong> Your order and agreed production period are confirmed. We will update you when work begins.</span></div>
   }
   if (offer.status === 'EXPIRED') return <div className="offer-notice"><Clock3 /> <span><strong>This offer has expired.</strong> It cannot be paid and no production capacity is reserved.</span></div>
   if (['CANCELLED', 'REFUNDED'].includes(offer.status)) return <div className="offer-notice"><span><strong>Offer status: {offer.status.toLowerCase()}.</strong> Payment is unavailable.</span></div>
@@ -55,6 +56,7 @@ export default function OfferPage({ token, query }) {
         await refresh()
         return
       }
+      rememberPaymentReturn(result.providerReference, token)
       window.location.assign(result.checkoutUrl)
     } catch (paymentError) {
       setError(paymentError.message)
@@ -65,7 +67,7 @@ export default function OfferPage({ token, query }) {
 
   return (
     <PageShell>
-      <section className="offer-page" aria-labelledby="offer-title">
+      <section className="offer-page" aria-label="Private offer">
         <div className="offer-kicker"><ShieldCheck size={18} /> Private offer</div>
         {loading && <p className="loading-copy" role="status">Loading the protected offer…</p>}
         {error && !offer && <div className="form-message error-message" role="alert">{error}</div>}
@@ -111,14 +113,14 @@ export default function OfferPage({ token, query }) {
                     <div className="payment-actions">
                       {offer.paymentMethods.map((method) => (
                         <button className="primary-button payment-button" key={method} disabled={!accepted || Boolean(paying)} onClick={() => pay(method)}>
-                          {method === 'CARD' ? 'Pay by card and start production' : method === 'MOCK' ? 'Create test payment — no real charge' : 'Pay with Vipps and start production'}
+                          {method === 'CARD' ? 'Accept and pay by card' : method === 'MOCK' ? 'Create test payment — no real charge' : 'Accept and pay with Vipps'}
                         </button>
                       ))}
                     </div>
-                    <small>Payment is the purchase action. Production starts only after server-side payment verification.</small>
+                    <small>Payment is the purchase action. It is confirmed only after server-side verification; a separate update is sent when production work begins.</small>
                   </>
                 )}
-                {offer.payable && offer.paymentMethods.length === 0 && <p className="form-message warning-message">Payment is not configured. This offer cannot be purchased yet.</p>}
+                {offer.payable && offer.paymentMethods.length === 0 && <p className="form-message warning-message">Purchasing is currently disabled. No payment can be made from this offer.</p>}
               </aside>
             </div>
           </>

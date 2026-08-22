@@ -4,12 +4,16 @@ import { ApiError, assertAllowedOrigin, errorResponse, json, options, requireMet
 import { generateProviderReference, sha256Hex } from "../_shared/crypto.ts";
 import { createVippsPayment } from "../_shared/vipps.ts";
 import { emailProviderMode } from "../_shared/email.ts";
+import {
+  isNonProductionEnvironment,
+  legalTradingEnabled,
+} from "../_shared/identity.ts";
 
-function frontendUrl(token: string, providerReference: string) {
+function frontendUrl(providerReference: string) {
   const siteUrl = Deno.env.get("SITE_URL");
   if (!siteUrl) throw new ApiError(503, "site_url_missing", "SITE_URL is required for payment returns.");
   const base = siteUrl.replace(/\/$/, "");
-  return `${base}/#/offer/${encodeURIComponent(token)}?payment=returned&reference=${encodeURIComponent(providerReference)}`;
+  return `${base}/#/payment-return?reference=${encodeURIComponent(providerReference)}`;
 }
 
 export default {
@@ -27,6 +31,9 @@ export default {
       if (typeof termsVersion !== "string" || termsVersion.length > 80) {
         throw new ApiError(400, "terms_required", "The exact offer terms must be acknowledged.");
       }
+      if (!legalTradingEnabled()) {
+        throw new ApiError(503, "legal_trading_disabled", "Purchasing is disabled until the registered business identity and consumer terms are approved.");
+      }
 
       const provider = Deno.env.get("PAYMENT_PROVIDER") ?? "disabled";
       if (!new Set(["mock", "vipps"]).has(provider)) {
@@ -35,12 +42,26 @@ export default {
       if (emailProviderMode() === "disabled") {
         throw new ApiError(503, "email_not_configured", "Order confirmation email is not configured.");
       }
-      if (provider === "mock" && Deno.env.get("ALLOW_MOCK_PAYMENTS") !== "true") {
+      if (
+        provider === "mock" &&
+        (!isNonProductionEnvironment() || Deno.env.get("ALLOW_MOCK_PAYMENTS") !== "true")
+      ) {
         throw new ApiError(503, "mock_payments_disabled", "Mock payments are disabled.");
       }
 
       const normalizedMethod = provider === "mock" ? "MOCK" : String(method ?? "WALLET");
-      if (!new Set(["MOCK", "WALLET", "CARD"]).has(normalizedMethod)) {
+      const allowedMethods = provider === "mock"
+        ? new Set(["MOCK"])
+        : new Set([
+          "WALLET",
+          ...(
+              Deno.env.get("VIPPS_ENVIRONMENT") === "production" &&
+                Deno.env.get("VIPPS_CARD_ENABLED") === "true"
+            ? ["CARD"]
+            : []
+          ),
+        ]);
+      if (!allowedMethods.has(normalizedMethod)) {
         throw new ApiError(400, "invalid_payment_method", "Choose a supported payment method.");
       }
 
@@ -76,7 +97,7 @@ export default {
       if (activePayment?.checkout_url) {
         return json(req, {
           checkoutUrl: activePayment.checkout_url,
-          providerReference: provider === "mock" ? activePayment.provider_reference : undefined,
+          providerReference: activePayment.provider_reference,
           reused: true,
         });
       }
@@ -84,7 +105,7 @@ export default {
       const providerReference = generateProviderReference();
       const idempotencyKey = crypto.randomUUID();
       const acceptedAt = new Date().toISOString();
-      const returnUrl = frontendUrl(token, providerReference);
+      const returnUrl = frontendUrl(providerReference);
       const paymentRow = {
         offer_id: offer.id,
         offer_version: offer.version,
@@ -115,7 +136,7 @@ export default {
           if (concurrent?.checkout_url) {
             return json(req, {
               checkoutUrl: concurrent.checkout_url,
-              providerReference: provider === "mock" ? concurrent.provider_reference : undefined,
+              providerReference: concurrent.provider_reference,
               reused: true,
             });
           }
@@ -147,7 +168,7 @@ export default {
 
         return json(req, {
           checkoutUrl,
-          providerReference: provider === "mock" ? providerReference : undefined,
+          providerReference,
           reused: false,
           message: provider === "mock"
             ? "Mock checkout created. A verified mock webhook is still required before this offer becomes paid."
