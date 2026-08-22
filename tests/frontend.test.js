@@ -18,6 +18,8 @@ test('unknown and malformed routes return a real not-found page', () => {
   assert.equal(parseHashRoute('#/something-else').name, 'notFound')
   assert.equal(parseHashRoute('#/%E0%A4%A').name, 'notFound')
   assert.equal(parseHashRoute('').name, 'home')
+  assert.equal(parseHashRoute('#work').name, 'home')
+  assert.equal(parseHashRoute('#request').name, 'home')
   assert.equal(parseHashRoute('#/payment-return?reference=BW-12345678').name, 'paymentReturn')
 })
 
@@ -51,6 +53,19 @@ test('paused intake disables submission while the portfolio and private routes r
   assert.match(home, /fieldset className="request-fields" disabled={!requestIntakeOpen \|\| !backendConfigured}/)
   assert.match(home, /<WorkGallery \/><CustomProcess \/><About \/><AvailablePieces \/><RequestForm \/>/)
   assert.match(main, /route\.name === 'offer'/)
+})
+
+test('showroom-only production builds reject every backend path', () => {
+  const backend = source('src/lib/backend.js')
+  const validator = source('scripts/check-production-config.mjs')
+  const workflow = source('.github/workflows/deploy.yml')
+
+  assert.match(backend, /backendConfigured = !showroomOnly/)
+  assert.match(backend, /if \(showroomOnly\) throw new Error\('This showroom does not accept online requests or payments\.'\)/)
+  assert.match(validator, /Supabase and privacy variables must be unset for a backend-free showroom deployment/)
+  assert.match(validator, /exact\('PAYMENT_PROVIDER', 'disabled'\)/)
+  assert.match(validator, /exact\('ALLOW_MOCK_PAYMENTS', 'false'\)/)
+  assert.match(workflow, /VITE_SHOWROOM_ONLY: \$\{\{ vars\.VITE_SHOWROOM_ONLY \}\}/)
 })
 
 test('offer and manager screens use the agreed Bata-approved production period', () => {

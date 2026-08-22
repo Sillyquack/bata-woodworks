@@ -5,11 +5,12 @@ const publicEnv = import.meta.env ?? {}
 const supabaseUrl = publicEnv.VITE_SUPABASE_URL?.replace(/\/$/, '')
 const publishableKey = publicEnv.VITE_SUPABASE_PUBLISHABLE_KEY
 
+export const showroomOnly = String(publicEnv.VITE_SHOWROOM_ONLY ?? 'false').trim().toLowerCase() === 'true'
 export const privacyVersion = publicEnv.VITE_PRIVACY_VERSION ?? ''
 export const requestIntakeOpen = isRequestIntakeOpen(publicEnv.VITE_REQUEST_INTAKE_OPEN)
-export const backendConfigured = Boolean(supabaseUrl && publishableKey && privacyVersion && privacyVersion !== 'needs_owner')
+export const backendConfigured = !showroomOnly && Boolean(supabaseUrl && publishableKey && privacyVersion && privacyVersion !== 'needs_owner')
 
-export const supabase = supabaseUrl && publishableKey
+export const supabase = !showroomOnly && supabaseUrl && publishableKey
   ? createClient(supabaseUrl, publishableKey, {
     auth: {
       persistSession: true,
@@ -20,6 +21,7 @@ export const supabase = supabaseUrl && publishableKey
   : null
 
 async function publicFunction(name, { body, headers = {} } = {}) {
+  if (showroomOnly) throw new Error('This showroom does not accept online requests or payments.')
   if (!supabaseUrl || !publishableKey) throw new Error('The online service is not configured.')
   const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
     method: 'POST',

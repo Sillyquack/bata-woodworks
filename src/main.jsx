@@ -14,7 +14,11 @@ const PaymentReturnPage = lazy(() => import('./pages/PaymentReturnPage'))
 function App() {
   const [route, setRoute] = useState(() => parseHashRoute(window.location.hash))
   useEffect(() => {
-    const update = () => { setRoute(parseHashRoute(window.location.hash)); window.scrollTo(0, 0) }
+    const update = () => {
+      const nextRoute = parseHashRoute(window.location.hash)
+      setRoute(nextRoute)
+      if (nextRoute.name !== 'home') window.scrollTo(0, 0)
+    }
     window.addEventListener('hashchange', update)
     return () => window.removeEventListener('hashchange', update)
   }, [])
