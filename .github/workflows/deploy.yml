@@ -73,3 +73,12 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Notify IndexNow
+        continue-on-error: true
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 2 --retry-all-errors \
+            --get 'https://api.indexnow.org/indexnow' \
+            --data-urlencode 'url=https://batawoodworks.no/' \
+            --data-urlencode 'key=7541721d47ee4040ec98be84279def1a'
