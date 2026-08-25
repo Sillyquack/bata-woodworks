@@ -98,3 +98,11 @@ test('production identity, metadata and payment return stay fail-closed', () => 
   assert.match(offerFunction, /VIPPS_LIVE_ENABLED/)
   assert.match(webhook, /isNonProductionEnvironment\(\)/)
 })
+
+test('Cloudflare Web Analytics stays installed with the minimum CSP allowances', () => {
+  const index = source('index.html')
+  assert.match(index, /https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js/)
+  assert.match(index, /3100ccb34bf248e5ba722e888312d264/)
+  assert.match(index, /script-src 'self' https:\/\/static\.cloudflareinsights\.com/)
+  assert.match(index, /connect-src 'self' https:\/\/cloudflareinsights\.com/)
+})
