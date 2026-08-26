@@ -84,6 +84,7 @@ export function Footer() {
         <strong>Bata Woodworks</strong>
         <p>Custom woodwork from reclaimed materials.</p>
         <a className="footer-email" href={`mailto:${publicIdentity.publicEmail}`}>{publicIdentity.publicEmail}</a>
+        <p>Website by <a href="https://koalafrosk.no/en">Koalafrosk</a></p>
       </div>
       <nav className="footer-links" aria-label="Legal and internal links">
         <a href="#/privacy">Privacy</a>
