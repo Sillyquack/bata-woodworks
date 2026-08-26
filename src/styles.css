@@ -589,10 +589,58 @@ select:focus {
   color: var(--text);
 }
 
+.footer-identity {
+  min-width: 0;
+}
+
 .footer-email {
   color: var(--amber-light);
   text-decoration: underline;
   text-underline-offset: 0.18em;
+}
+
+.koalafrosk-credit {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 1.25rem;
+  color: var(--muted);
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.koalafrosk-credit-label {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.koalafrosk-credit-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.koalafrosk-credit img {
+  display: block;
+  width: min(10rem, calc(100vw - 3rem));
+  height: auto;
+  opacity: 0.82;
+  transition: opacity 180ms ease;
+}
+
+.koalafrosk-credit-arrow {
+  color: var(--amber-light);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.koalafrosk-credit:hover img,
+.koalafrosk-credit:focus-visible img {
+  opacity: 1;
 }
 
 .footer-links {
@@ -678,6 +726,14 @@ select:focus {
     right: 1rem;
     bottom: 1rem;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 340px) {
+  .koalafrosk-credit {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.55rem;
   }
 }
 

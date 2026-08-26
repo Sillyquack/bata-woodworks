@@ -80,10 +80,25 @@ export function Header({ compact = false }) {
 export function Footer() {
   return (
     <footer className="footer">
-      <div>
+      <div className="footer-identity">
         <strong>Bata Woodworks</strong>
         <p>Custom woodwork from reclaimed materials.</p>
         <a className="footer-email" href={`mailto:${publicIdentity.publicEmail}`}>{publicIdentity.publicEmail}</a>
+        <a className="koalafrosk-credit" href="https://koalafrosk.no/en" aria-label="Website by Koalafrosk">
+          <span className="koalafrosk-credit-label" aria-hidden="true">Made by</span>
+          {/* Official Koalafrosk brand asset, sourced from Sillyquack/koalafrosk. */}
+          <span className="koalafrosk-credit-brand" aria-hidden="true">
+            <img
+              src={`${import.meta.env.BASE_URL}brand/koalafrosk-logo-compact-light.svg`}
+              alt=""
+              width="505"
+              height="160"
+              loading="lazy"
+              decoding="async"
+            />
+            <span className="koalafrosk-credit-arrow">↗</span>
+          </span>
+        </a>
       </div>
       <nav className="footer-links" aria-label="Legal and internal links">
         <a href="#/privacy">Privacy</a>

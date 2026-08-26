@@ -106,3 +106,16 @@ test('Cloudflare Web Analytics stays installed with the minimum CSP allowances',
   assert.match(index, /script-src 'self' https:\/\/static\.cloudflareinsights\.com/)
   assert.match(index, /connect-src 'self' https:\/\/cloudflareinsights\.com/)
 })
+
+test('footer uses the approved local Koalafrosk credit without changing navigation conventions', () => {
+  const chrome = source('src/components/Chrome.jsx')
+  const compactLogo = source('public/brand/koalafrosk-logo-compact-light.svg')
+
+  assert.match(chrome, /href="https:\/\/koalafrosk\.no\/en" aria-label="Website by Koalafrosk"/)
+  assert.match(chrome, />Made by</)
+  assert.match(chrome, /brand\/koalafrosk-logo-compact-light\.svg/)
+  assert.match(chrome, /alt=""/)
+  assert.doesNotMatch(chrome, /nofollow|sponsored|target="_blank"/)
+  assert.match(compactLogo, /viewBox="0 0 505 160"/)
+  assert.match(compactLogo, /fill="#fffdf8"/)
+})
