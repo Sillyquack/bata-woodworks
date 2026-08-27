@@ -90,7 +90,7 @@ export function Footer() {
           <span className="koalafrosk-credit-brand" aria-hidden="true">
             <img
               src={`${import.meta.env.BASE_URL}brand/koalafrosk-logo-compact-light.svg`}
-              alt=""
+              alt="Koalafrosk"
               width="505"
               height="160"
               loading="lazy"

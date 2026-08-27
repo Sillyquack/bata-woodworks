@@ -114,7 +114,7 @@ test('footer uses the approved local Koalafrosk credit without changing navigati
   assert.match(chrome, /href="https:\/\/koalafrosk\.no\/en" aria-label="Website by Koalafrosk"/)
   assert.match(chrome, />Made by</)
   assert.match(chrome, /brand\/koalafrosk-logo-compact-light\.svg/)
-  assert.match(chrome, /alt=""/)
+  assert.match(chrome, /alt="Koalafrosk"/)
   assert.doesNotMatch(chrome, /nofollow|sponsored|target="_blank"/)
   assert.match(compactLogo, /viewBox="0 0 505 160"/)
   assert.match(compactLogo, /fill="#fffdf8"/)
